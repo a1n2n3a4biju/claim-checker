@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+weights/
+uploads/
+results/
+data/images/
+node_modules/
+third_party/samples/*.jpg
+samples/*.png
