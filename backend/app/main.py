@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from .database import Base, engine, get_db
 from . import models
+from .modules import forensics, jpeg_artifacts, ai_detector
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("results", exist_ok=True)
@@ -92,7 +93,7 @@ def get_results(claim_id: int, db: Session = Depends(get_db)):
             "image_id": img.id,
             "url": "/" + img.file_path,
             "duplicate_of": img.duplicate_of,
-            "risk_score": None,          # filled in once analysis exists
+            "risk_score": fuse([m["score"] for m in modules]),         # filled in once analysis exists
             "modules": modules,
         })
 
@@ -107,3 +108,57 @@ def get_results(claim_id: int, db: Session = Depends(get_db)):
         "reviewer_decision": verdict.reviewer_decision if verdict else None,
         "images": images,
     }
+
+# Placeholder thresholds until M2's fusion model is ready
+LOW_THRESHOLD, HIGH_THRESHOLD = 0.4, 0.7
+
+
+def run_all_modules(image_path: str, out_dir: str = "results") -> list[dict]:
+    results = []
+    for module in (forensics, jpeg_artifacts, ai_detector):
+        r = module.analyze(image_path, out_dir)
+        results.extend(r if isinstance(r, list) else [r])
+    return results
+
+
+def risk_level(score: float) -> str:
+    if score < LOW_THRESHOLD:
+        return "low"
+    return "medium" if score < HIGH_THRESHOLD else "high"
+def fuse(scores: list[float]) -> float:
+    """Placeholder fusion: average of module scores. M2's model replaces this."""
+    return round(sum(scores) / len(scores), 2) if scores else None
+
+
+@app.post("/claims/{claim_id}/analyze")
+def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
+    if not db.get(models.Claim, claim_id):
+        raise HTTPException(404, "Claim not found")
+    images = db.query(models.ImageRecord).filter_by(claim_id=claim_id).all()
+    if not images:
+        raise HTTPException(400, "Upload at least one photo before analyzing")
+
+    claim_score, reasons = 0.0, []
+    for img in images:
+        if img.duplicate_of:
+            reasons.append(f"Photo {img.id} is identical to an earlier upload (photo {img.duplicate_of})")
+        # remove old results so analyzing twice doesn't duplicate rows
+        db.query(models.AnalysisResult).filter_by(image_id=img.id).delete()
+        results = run_all_modules(img.file_path)
+        for r in results:
+            db.add(models.AnalysisResult(image_id=img.id, module=r["module"],
+                                         score=r["score"], flags=r["flags"],
+                                         artifact_paths=r["artifacts"]))
+            reasons.extend(r["flags"])
+        # placeholder fusion: average of module scores (replaced by M2's model)
+        image_score = fuse([r["score"] for r in results])
+        claim_score = max(claim_score, image_score)   # claim = riskiest photo
+
+    verdict = models.Verdict(claim_id=claim_id,
+                             overall_risk=risk_level(claim_score),
+                             risk_score=round(claim_score, 2),
+                             reasons=reasons[:5])
+    db.add(verdict)
+    db.commit()
+    return {"claim_id": claim_id, "overall_risk": verdict.overall_risk,
+            "risk_score": verdict.risk_score}
