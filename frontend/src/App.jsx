@@ -1,122 +1,85 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
+import { Box, Button, Typography } from '@mui/material';
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined';
+import ClaimsList from './pages/ClaimsList';
+import NewClaim from './pages/NewClaim';
+import Results from './pages/Results';
+import { USE_MOCK } from './api/claims';
 
-function App() {
-  const [count, setCount] = useState(0)
-
+function NavButton({ to, label, icon, active }) {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+    <Button
+      component={RouterLink}
+      to={to}
+      startIcon={icon}
+      sx={{
+        justifyContent: 'flex-start',
+        px: 1.5,
+        py: 1,
+        color: active ? 'primary.main' : 'text.secondary',
+        bgcolor: active ? 'rgba(14, 94, 111, 0.08)' : 'transparent',
+        '&:hover': { bgcolor: 'rgba(14, 94, 111, 0.06)' },
+      }}
+    >
+      {label}
+    </Button>
+  );
 }
 
-export default App
+export default function App() {
+  const { pathname } = useLocation();
+  const inQueue = pathname === '/claims' || /^\/claims\/\d+/.test(pathname);
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, minHeight: '100vh' }}>
+      <Box
+        component="nav"
+        aria-label="Main"
+        sx={{
+          width: { md: 232 },
+          flexShrink: 0,
+          bgcolor: 'background.paper',
+          borderRight: { md: 1 },
+          borderBottom: { xs: 1, md: 0 },
+          borderColor: 'divider',
+          display: 'flex',
+          flexDirection: { xs: 'row', md: 'column' },
+          alignItems: { xs: 'center', md: 'stretch' },
+          gap: 0.5,
+          p: 2,
+          position: { md: 'sticky' },
+          top: 0,
+          height: { md: '100vh' },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, mb: { md: 3 }, mr: { xs: 2, md: 0 } }}>
+          <VerifiedUserOutlinedIcon color="primary" />
+          <Typography sx={{ fontWeight: 700, fontSize: '1.0625rem' }}>Claim Checker</Typography>
+        </Box>
+
+        <NavButton to="/claims" label="Review queue" icon={<InboxOutlinedIcon />} active={inQueue} />
+        <NavButton to="/claims/new" label="New claim" icon={<AddPhotoAlternateOutlinedIcon />} active={pathname === '/claims/new'} />
+
+        <Box sx={{ flexGrow: 1 }} />
+        {USE_MOCK && (
+          <Typography variant="caption" color="text.secondary" sx={{ px: 1, display: { xs: 'none', md: 'block' } }}>
+            Showing sample data
+          </Typography>
+        )}
+      </Box>
+
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, px: { xs: 2, md: 5 }, py: { xs: 3, md: 5 } }}>
+        <Box sx={{ maxWidth: 1100 }}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/claims" replace />} />
+            <Route path="/claims" element={<ClaimsList />} />
+            <Route path="/claims/new" element={<NewClaim />} />
+            <Route path="/claims/:id" element={<Results />} />
+          </Routes>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
