@@ -66,3 +66,44 @@ async def upload_images(claim_id: int, files: list[UploadFile] = File(...),
                       "duplicate_of": img.duplicate_of})
     db.commit()
     return saved
+
+
+@app.get("/claims/{claim_id}/results")
+def get_results(claim_id: int, db: Session = Depends(get_db)):
+    claim = db.get(models.Claim, claim_id)
+    if not claim:
+        raise HTTPException(404, "Claim not found")
+
+    verdict = (db.query(models.Verdict)
+                 .filter_by(claim_id=claim_id)
+                 .order_by(models.Verdict.id.desc())
+                 .first())
+
+    images = []
+    for img in db.query(models.ImageRecord).filter_by(claim_id=claim_id).all():
+        modules = []
+        for r in db.query(models.AnalysisResult).filter_by(image_id=img.id).all():
+            artifacts = {}
+            if r.artifact_paths and r.artifact_paths.get("heatmap_path"):
+                artifacts["heatmap_url"] = "/" + r.artifact_paths["heatmap_path"]
+            modules.append({"module": r.module, "score": r.score,
+                            "flags": r.flags or [], "artifacts": artifacts})
+        images.append({
+            "image_id": img.id,
+            "url": "/" + img.file_path,
+            "duplicate_of": img.duplicate_of,
+            "risk_score": None,          # filled in once analysis exists
+            "modules": modules,
+        })
+
+    return {
+        "claim_id": claim.id,
+        "claimant_name": claim.claimant_name,
+        "incident_date": claim.incident_date,
+        "status": "analyzed" if verdict else "not_analyzed",
+        "overall_risk": verdict.overall_risk if verdict else None,
+        "risk_score": verdict.risk_score if verdict else None,
+        "reasons": verdict.reasons if verdict else [],
+        "reviewer_decision": verdict.reviewer_decision if verdict else None,
+        "images": images,
+    }
