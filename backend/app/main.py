@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from .database import Base, engine, get_db
 from . import models
 from .modules import forensics, jpeg_artifacts, ai_detector
+from datetime import datetime, timezone
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("results", exist_ok=True)
@@ -25,6 +26,9 @@ class ClaimIn(BaseModel):
     incident_date: str
     description: str = ""
 
+class DecisionIn(BaseModel):
+    decision: str          # "approved" or "escalated"
+    note: str = ""
 
 @app.post("/claims")
 def create_claim(data: ClaimIn, db: Session = Depends(get_db)):
@@ -162,3 +166,28 @@ def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"claim_id": claim_id, "overall_risk": verdict.overall_risk,
             "risk_score": verdict.risk_score}
+@app.patch("/claims/{claim_id}/decision")
+def record_decision(claim_id: int, data: DecisionIn, db: Session = Depends(get_db)):
+    if data.decision not in ("approved", "escalated"):
+        raise HTTPException(400, "decision must be 'approved' or 'escalated'")
+    verdict = (db.query(models.Verdict).filter_by(claim_id=claim_id)
+                 .order_by(models.Verdict.id.desc()).first())
+    if not verdict:
+        raise HTTPException(400, "Analyze the claim before recording a decision")
+    verdict.reviewer_decision = data.decision
+    verdict.reviewer_note = data.note
+    verdict.decided_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"claim_id": claim_id, "decision": data.decision, "note": data.note}
+
+
+@app.get("/review-queue")
+def review_queue(db: Session = Depends(get_db)):
+    queue = []
+    for claim in db.query(models.Claim).order_by(models.Claim.id).all():
+        verdict = (db.query(models.Verdict).filter_by(claim_id=claim.id)
+                     .order_by(models.Verdict.id.desc()).first())
+        if verdict and verdict.overall_risk in ("medium", "high") and not verdict.reviewer_decision:
+            queue.append({"claim_id": claim.id, "claimant_name": claim.claimant_name,
+                          "overall_risk": verdict.overall_risk, "risk_score": verdict.risk_score})
+    return queue
