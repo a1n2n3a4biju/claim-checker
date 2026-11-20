@@ -5,7 +5,8 @@ uploads/
 results/
 data/images/
 node_modules/
-third_party/samples/*.jpg
+third_party/
+samples/*.jpg
 samples/*.png
 *.db
 .env
