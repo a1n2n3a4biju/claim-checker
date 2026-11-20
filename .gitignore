@@ -7,3 +7,4 @@ data/images/
 node_modules/
 third_party/samples/*.jpg
 samples/*.png
+*.db
