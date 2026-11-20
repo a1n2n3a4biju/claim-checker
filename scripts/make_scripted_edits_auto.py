@@ -63,12 +63,12 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 MAIN_FOLDER = ROOT_DIR / "data" / "images"                      # your dataset folder
 
 GENUINE_DIR = MAIN_FOLDER / "genuine"             # P_###.jpg
-DONOR_IMAGES_DIR = MAIN_FOLDER / "donors" / "images"         # D_###.jpg
+DONOR_IMAGES_DIR = MAIN_FOLDER / "donors"         # D_###.jpg
 DONOR_ANN_DIR = None                              # optional part annotations, e.g. MAIN_FOLDER / "donors" / "annotations"
 OUTPUT_DIR = MAIN_FOLDER / "Scripted_edits"       # edited JPEGs go here
 MASKS_DIR = MAIN_FOLDER / "masks"                 # masks go here
-PREVIEW_DIR = MAIN_FOLDER / "previews"                    # original | edit | mask; None to turn off
-DEBUG_DIR = MAIN_FOLDER / "debug"                         # detection overlays; None to turn off
+PREVIEW_DIR = None     # MAIN_FOLDER / "previews"      # original | edit | mask; None to turn off
+DEBUG_DIR = None       #MAIN_FOLDER / "debug"          # detection overlays; None to turn off
 DEBUG_ONLY = False                                # True = only write overlays, no edits
 
 N_COPY_MOVE = 15
