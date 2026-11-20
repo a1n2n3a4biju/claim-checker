@@ -88,6 +88,7 @@ git push
 - Only edit your own module file. Ask before editing `pipeline.py`.
 - Never commit images, model weights, the database or `results/` (they are in `.gitignore`).
 - Pull before you start working each day.
+- - `score` must be a plain Python float, not a NumPy or PyTorch number (use `float(...)`)
 
 ---
 
