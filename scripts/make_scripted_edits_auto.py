@@ -1,8 +1,8 @@
 """
 Scripted edits without damage annotations (E1.3).
 
-Finds where things are automatically, then reuses the blending code in
-make_scripted_edits.py (keep both files in the same folder):
+Finds where things are automatically, then blends the edits in with OpenCV
+Poisson blending (cv2.seamlessClone). Self-contained: needs no other script.
 
   Car body   Mask R-CNN pretrained on COCO (torchvision, CPU, no training) gives
              the car's pixel mask. CAR_MASK_METHOD = "grabcut" uses OpenCV GrabCut
@@ -13,8 +13,8 @@ make_scripted_edits.py (keep both files in the same folder):
   Damage     spots whose edge energy is much higher than the rest of their
              region and that sit away from region borders (where trims and
              panel gaps are). On donors the search runs inside the annotated
-             body panels (Front-door, Hood, ...); on genuine photos, inside the
-             car mask.
+             body panels (Front-door, Hood, ...) if part annotations exist;
+             otherwise (and always on genuine photos) inside the car mask.
 
   Copy-move  CM_P_014.jpg           a damage candidate of P_014 is cloned onto a
                                     smooth panel area of the same car
@@ -38,6 +38,8 @@ Step 1: set DEBUG_ONLY = True and run. It writes overlays to DEBUG_DIR and makes
 Step 2: set DEBUG_ONLY = False and run again to make the edits.
 """
 
+import json
+import math
 import random
 import re
 import sys
@@ -46,21 +48,27 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from PIL import Image
-
-import make_scripted_edits as base   # blending, placement and saving code
+from PIL import Image, JpegImagePlugin
 
 
-ROOT = Path(__file__).resolve().parent.parent
-MAIN_FOLDER = ROOT / "data" / "images"                      # your dataset folder
+DEFAULT_PANELS = ("panel,front-door,back-door,door,hood,fender,quarter-panel,trunk,"
+                  "front-bumper,back-bumper,bumper,rocker-panel,roof")
+MIN_SIDE = 256
+INSIDE_PANEL = 0.95        # share of the pasted area that must lie on the panel
+MAX_COLOR_DIST = 18.0      # LAB distance for "same paint" when no panels exist
+
+
+# SETTINGS: edit these, then run the script
+ROOT_DIR = Path(__file__).resolve().parent.parent
+MAIN_FOLDER = ROOT_DIR / "data" / "images"                      # your dataset folder
 
 GENUINE_DIR = MAIN_FOLDER / "genuine"             # P_###.jpg
 DONOR_IMAGES_DIR = MAIN_FOLDER / "donors" / "images"         # D_###.jpg
-DONOR_ANN_DIR = MAIN_FOLDER / "donors" / "annotations"       # D_###.jpg.json (parts); None if missing
+DONOR_ANN_DIR = None                              # optional part annotations, e.g. MAIN_FOLDER / "donors" / "annotations"
 OUTPUT_DIR = MAIN_FOLDER / "Scripted_edits"       # edited JPEGs go here
 MASKS_DIR = MAIN_FOLDER / "masks"                 # masks go here
-PREVIEW_DIR = ROOT / "data" / "images" / "previews"         # original | edit | mask; None to turn off
-DEBUG_DIR = ROOT / "data" / "images" / "debug"    # detection overlays; None to turn off
+PREVIEW_DIR = MAIN_FOLDER / "previews"                    # original | edit | mask; None to turn off
+DEBUG_DIR = MAIN_FOLDER / "debug"                         # detection overlays; None to turn off
 DEBUG_ONLY = False                                # True = only write overlays, no edits
 
 N_COPY_MOVE = 15
@@ -70,21 +78,73 @@ CAR_MASK_METHOD = "maskrcnn"    # "maskrcnn" (needs PyTorch) or "grabcut" (OpenC
 MIN_SCORE = 0.6                 # Mask R-CNN confidence; lower (0.4) if close-ups find no car
 DAMAGE_FACTOR = 2.0             # higher = fewer false "damage" (handles, badges); lower = more
 KEEP_DARK = False               # True for black/dark cars
-PANEL_CLASSES = base.DEFAULT_PANELS   # donor part classes searched for damage
+PANEL_CLASSES = DEFAULT_PANELS   # donor part classes searched for damage
 CLONE_MODE = "hybrid"           # "hybrid", "normal" or "mixed"
 JPEG_QUALITY = "keep"           # "keep" = source photo's own JPEG tables, or a number like 90
 SEED = 42
-OVERWRITE = True               # True = remake edits that already exist
+OVERWRITE = False               # True = remake edits that already exist
 
 
 GENUINE_RE = re.compile(r"^P_\d+\.jpg$")
 DONOR_RE = re.compile(r"^D_\d+\.jpg$")
-COCO_VEHICLES = {3}               # COCO labels: 3 = car, 8 = truck
+COCO_VEHICLES = {3, 8}               # COCO labels: 3 = car, 8 = truck
 
 MIN_DAMAGE = 0.001                   # damage candidate: 0.1% ...
 MAX_DAMAGE = 0.06                    # ... to 6% of the photo
 MIN_SMOOTH = 0.01                    # smooth panel area: at least 1% of the photo
 SMOOTH_STD_FLOOR = 8.0               # local grey-level std always counted as smooth paint
+
+
+# shared helpers
+
+def norm(title: str) -> str:
+    return re.sub(r"[\s_]+", "-", title.strip().lower())
+
+
+def kernel(size: int):
+    size = max(1, int(size))
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))
+
+
+def find_ann(ann_dir: Path, img_path: Path):
+    for cand in (ann_dir / f"{img_path.name}.json", ann_dir / f"{img_path.stem}.json"):
+        if cand.exists():
+            return cand
+    return None
+
+
+def load_jpeg(path: Path):
+    with Image.open(path) as im:
+        if im.format != "JPEG":
+            raise ValueError(f"{path.name} is not a real JPEG (format: {im.format})")
+        qtables = im.quantization
+        sampling = JpegImagePlugin.get_sampling(im)
+        arr = np.asarray(im.convert("RGB")).copy()
+    return arr, qtables, sampling
+
+
+def load_objects(ann_file: Path, w: int, h: int):
+    """Return [(class, mask)] with polygons scaled to the real image size."""
+    data = json.loads(ann_file.read_text())
+    aw, ah = data["size"]["width"], data["size"]["height"]
+    if abs(aw / ah - w / h) > 0.01:
+        raise ValueError(f"annotation size {aw}x{ah} does not match image {w}x{h}")
+    sx, sy = w / aw, h / ah
+    objs = []
+    for o in data.get("objects", []):
+        if o.get("geometryType") != "polygon":
+            continue
+        ext = o["points"]["exterior"]
+        if len(ext) < 3:
+            continue
+        m = np.zeros((h, w), np.uint8)
+        cv2.fillPoly(m, [np.round(np.array(ext) * [sx, sy]).astype(np.int32)], 255)
+        for hole in o["points"].get("interior", []):
+            if len(hole) >= 3:
+                cv2.fillPoly(m, [np.round(np.array(hole) * [sx, sy]).astype(np.int32)], 0)
+        objs.append((norm(o["classTitle"]), m))
+    return objs
+
 
 
 # car mask
@@ -162,7 +222,7 @@ class Features:
         hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
         s, v = hsv[..., 1], hsv[..., 2]
         dark = ((v < 55) | ((v < 90) & (s < 40))).astype(np.uint8) * 255
-        self.dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, base.kernel(5))
+        self.dark = cv2.morphologyEx(dark, cv2.MORPH_OPEN, kernel(5))
 
 
 def odd(n):
@@ -187,7 +247,7 @@ def smooth_areas(f: Features, car, keep_dark):
     # smooth everywhere isn't split into random halves
     thr = max(float(np.percentile(f.std[region > 0], 50)), SMOOTH_STD_FLOOR)
     smooth = ((f.std <= thr) & (region > 0)).astype(np.uint8) * 255
-    k = base.kernel(odd(0.02 * f.unit))
+    k = kernel(odd(0.02 * f.unit))
     smooth = cv2.morphologyEx(cv2.morphologyEx(smooth, cv2.MORPH_OPEN, k), cv2.MORPH_CLOSE, k)
     n, labels, stats, _ = cv2.connectedComponentsWithStats(smooth, 8)
     comps = [(stats[i, cv2.CC_STAT_AREA], i) for i in range(1, n)
@@ -206,8 +266,8 @@ def damage_candidates(f: Features, region, factor, keep_dark):
     hot = ((f.energy > factor * med) & (inner > 0)).astype(np.uint8) * 255
     if not keep_dark:
         hot &= ~f.dark
-    hot = cv2.morphologyEx(hot, cv2.MORPH_CLOSE, base.kernel(odd(0.015 * f.unit)))
-    hot = cv2.morphologyEx(hot, cv2.MORPH_OPEN, base.kernel(5))
+    hot = cv2.morphologyEx(hot, cv2.MORPH_CLOSE, kernel(odd(0.015 * f.unit)))
+    hot = cv2.morphologyEx(hot, cv2.MORPH_OPEN, kernel(5))
     n, labels, stats, _ = cv2.connectedComponentsWithStats(hot, 8)
     out = []
     for i in range(1, n):
@@ -228,13 +288,13 @@ def damage_candidates(f: Features, region, factor, keep_dark):
 # photos
 
 class AutoPhoto:
-    """Same attributes as base.Photo, so base.make_copy_move/make_splice work."""
+    """One photo with its car mask, smooth panel areas and damage candidates."""
 
     def __init__(self, path, masker, ann_dir=None, panel_classes=None):
         self.path = path
-        self.img, self.qtables, self.sampling = base.load_jpeg(path)
+        self.img, self.qtables, self.sampling = load_jpeg(path)
         h, w = self.img.shape[:2]
-        if min(h, w) < base.MIN_SIDE:
+        if min(h, w) < MIN_SIDE:
             raise ValueError(f"too small ({w}x{h})")
         f = Features(self.img)
         self.lab = cv2.cvtColor(self.img, cv2.COLOR_RGB2LAB).astype(np.float32)
@@ -243,9 +303,9 @@ class AutoPhoto:
 
         # where to search for damage: annotated body panels if available, else the car
         regions = []
-        ann = base.find_ann(ann_dir, path) if ann_dir else None
+        ann = find_ann(ann_dir, path) if ann_dir else None
         if ann is not None:
-            objs = base.load_objects(ann, w, h)
+            objs = load_objects(ann, w, h)
             regions = [m for c, m in objs if c in panel_classes
                        and cv2.countNonZero(m) >= 0.01 * h * w]
         if not regions:
@@ -270,7 +330,7 @@ class AutoPhoto:
         avoid = np.zeros((h, w), np.uint8)
         for m in self.damages:
             avoid |= m
-        self.avoid = cv2.dilate(avoid, base.kernel(15))
+        self.avoid = cv2.dilate(avoid, kernel(15))
 
 
 def save_debug(photo: AutoPhoto, dst: Path, width=700):
@@ -284,14 +344,199 @@ def save_debug(photo: AutoPhoto, dst: Path, width=700):
         cs, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(view, cs, -1, (255, 0, 0), 2)
         x, y, _, _ = cv2.boundingRect(m)
-        base_text(view, f"{score:.1f}", (x, max(15, y - 5)))
+        draw_label(view, f"{score:.1f}", (x, max(15, y - 5)))
     h = int(view.shape[0] * width / view.shape[1])
     Image.fromarray(cv2.resize(view, (width, h), interpolation=cv2.INTER_AREA)).save(dst)
 
 
-def base_text(img, text, org):
+def draw_label(img, text, org):
     cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 0), 4, cv2.LINE_AA)
     cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2, cv2.LINE_AA)
+
+
+# patch, placement and blending
+
+def extract_patch(img, mask, rng, scale=None, target_area=None):
+    """Cut the damage plus a small margin of surrounding surface, then scale/rotate."""
+    H, W = img.shape[:2]
+    x, y, w, h = cv2.boundingRect(mask)
+    pad = max(4, int(0.15 * max(w, h)))
+    x0, y0, x1, y1 = max(0, x - pad), max(0, y - pad), min(W, x + w + pad), min(H, y + h + pad)
+    patch = img[y0:y1, x0:x1].copy()
+    core = mask[y0:y1, x0:x1].copy()              # the damage itself
+    pm = cv2.dilate(core, kernel(max(3, pad // 2)))  # damage plus a thin ring of surface
+
+    if target_area is not None:
+        s = math.sqrt(target_area / max(1, cv2.countNonZero(pm)))
+    else:
+        s = rng.uniform(*scale)
+    s = float(np.clip(s, 0.3, 3.0))
+    size = (max(8, round(patch.shape[1] * s)), max(8, round(patch.shape[0] * s)))
+    patch = cv2.resize(patch, size, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
+    pm = cv2.resize(pm, size, interpolation=cv2.INTER_NEAREST)
+    core = cv2.resize(core, size, interpolation=cv2.INTER_NEAREST)
+
+    angle = rng.uniform(-10, 10)
+    ph, pw = pm.shape
+    M = cv2.getRotationMatrix2D((pw / 2, ph / 2), angle, 1.0)
+    cos, sin = abs(M[0, 0]), abs(M[0, 1])
+    nw, nh = int(ph * sin + pw * cos) + 1, int(ph * cos + pw * sin) + 1
+    M[0, 2] += nw / 2 - pw / 2
+    M[1, 2] += nh / 2 - ph / 2
+    patch = cv2.warpAffine(patch, M, (nw, nh), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
+    pm = cv2.warpAffine(pm, M, (nw, nh), flags=cv2.INTER_NEAREST, borderValue=0)
+    core = cv2.warpAffine(core, M, (nw, nh), flags=cv2.INTER_NEAREST, borderValue=0)
+
+    # zero border so seamlessClone never sees mask pixels on the patch edge
+    patch = cv2.copyMakeBorder(patch, 3, 3, 3, 3, cv2.BORDER_REFLECT)
+    pm = cv2.copyMakeBorder(pm, 3, 3, 3, 3, cv2.BORDER_CONSTANT, value=0)
+    core = cv2.copyMakeBorder(core, 3, 3, 3, 3, cv2.BORDER_CONSTANT, value=0)
+    return patch, pm, core
+
+
+def ring_color(photo, mask):
+    ring = cv2.dilate(mask, kernel(21)) & ~cv2.dilate(mask, kernel(7)) & ~photo.avoid
+    if cv2.countNonZero(ring) < 30:
+        return None
+    return photo.lab[ring > 0].mean(axis=0)
+
+
+def find_spot(photo, pm, rng, panel=None, anchor=None, ref=None, extra_avoid=None, tries=400):
+    H, W = photo.img.shape[:2]
+    ph, pw = pm.shape
+    if ph >= H - 2 or pw >= W - 2:
+        return None
+    on = pm > 0
+    avoid = photo.avoid if extra_avoid is None else (photo.avoid | extra_avoid)
+    if panel is not None:
+        ys, xs = np.nonzero(panel)
+    for _ in range(tries):
+        if panel is not None:
+            i = rng.randrange(len(xs))
+            x, y = int(xs[i]) - pw // 2, int(ys[i]) - ph // 2
+        else:
+            ax, ay, aw, ah = anchor
+            a = rng.uniform(0, 2 * math.pi)
+            d = rng.uniform(0.7, 2.0) * max(aw, ah, pw, ph)
+            x = int(ax + aw / 2 + d * math.cos(a) - pw / 2)
+            y = int(ay + ah / 2 + d * math.sin(a) - ph / 2)
+        if x < 1 or y < 1 or x + pw > W - 1 or y + ph > H - 1:
+            continue
+        if avoid[y:y + ph, x:x + pw][on].any():
+            continue
+        if panel is not None:
+            if (panel[y:y + ph, x:x + pw][on] > 0).mean() < INSIDE_PANEL:
+                continue
+        else:
+            if ref is None:
+                return None
+            col = photo.lab[y:y + ph, x:x + pw][on].mean(axis=0)
+            if np.linalg.norm(col - ref) > MAX_COLOR_DIST:
+                continue
+        return x, y
+    return None
+
+
+def clone(photo, patch, pm, core, x, y, mode: str):
+    """
+    normal: Poisson blending (seamless edges, but colours drift toward the
+            surroundings, so dark damage can fade)
+    mixed:  Poisson blending that keeps the stronger texture of the two images
+    hybrid: Poisson blending for the surface ring, original pixels for the
+            damage itself (seamless edges and the damage keeps its colour)
+    """
+    target = photo.img
+    ph, pw = pm.shape
+
+    # shift the patch's colours so its surface ring matches the paint it lands on
+    # (matters for splices, where the donor car has a different colour)
+    ring = (pm > 0) & (core == 0)
+    if ring.sum() > 30:
+        dst_ring = target[y:y + ph, x:x + pw][ring].astype(np.float32).mean(axis=0)
+        src_ring = patch[ring].astype(np.float32).mean(axis=0)
+        patch = np.clip(patch.astype(np.float32) + (dst_ring - src_ring), 0, 255).astype(np.uint8)
+
+    bx, by, bw, bh = cv2.boundingRect(pm)
+    center = (x + bx + bw // 2, y + by + bh // 2)
+    flag = cv2.MIXED_CLONE if mode == "mixed" else cv2.NORMAL_CLONE
+    out = cv2.seamlessClone(patch, target, pm, center, flag)
+
+    if mode == "hybrid":
+        a = cv2.GaussianBlur(cv2.erode(core, kernel(3)), (0, 0), 2.0).astype(np.float32)[..., None] / 255
+        region = out[y:y + ph, x:x + pw].astype(np.float32)
+        out[y:y + ph, x:x + pw] = (region * (1 - a) + patch.astype(np.float32) * a).astype(np.uint8)
+
+    placed = np.zeros(target.shape[:2], np.uint8)
+    placed[y:y + ph, x:x + pw] = pm
+    diff = np.abs(out.astype(np.int16) - target.astype(np.int16)).max(axis=2)
+    changed = ((diff > 8) & (cv2.dilate(placed, kernel(15)) > 0)).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(changed, cv2.MORPH_CLOSE, kernel(7)) | placed
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    filled = np.zeros_like(mask)
+    cv2.drawContours(filled, contours, -1, 255, thickness=cv2.FILLED)
+    return out, filled
+
+
+def make_copy_move(photo, rng, mode):
+    H, W = photo.img.shape[:2]
+    for _ in range(25):
+        dmg = rng.choice(photo.damages)
+        patch, pm, core = extract_patch(photo.img, dmg, rng, scale=(0.8, 1.2))
+        src_area = cv2.dilate(dmg, kernel(25))
+        if photo.panels:
+            panel = rng.choice(photo.panels)
+            spot = find_spot(photo, pm, rng, panel=panel, extra_avoid=src_area)
+        else:
+            spot = find_spot(photo, pm, rng, anchor=cv2.boundingRect(dmg),
+                             ref=ring_color(photo, dmg), extra_avoid=src_area)
+        if spot:
+            return clone(photo, patch, pm, core, *spot, mode)
+    raise RuntimeError("no sensible destination found")
+
+
+def make_splice(photo, donor, rng, mode):
+    H, W = photo.img.shape[:2]
+    for _ in range(25):
+        dmg = rng.choice(donor.damages)
+        if photo.panels:
+            panel = rng.choice(photo.panels)
+            area = rng.uniform(0.05, 0.25) * cv2.countNonZero(panel)
+            area = float(np.clip(area, 0.004 * W * H, 0.08 * W * H))
+            patch, pm, core = extract_patch(donor.img, dmg, rng, target_area=area)
+            spot = find_spot(photo, pm, rng, panel=panel)
+        elif photo.damages:
+            anchor = rng.choice(photo.damages)
+            area = rng.uniform(0.6, 1.5) * cv2.countNonZero(anchor)
+            patch, pm, core = extract_patch(donor.img, dmg, rng, target_area=area)
+            spot = find_spot(photo, pm, rng, anchor=cv2.boundingRect(anchor),
+                             ref=ring_color(photo, anchor))
+        else:
+            raise RuntimeError("photo has no panels or damage to place against")
+        if spot:
+            return clone(photo, patch, pm, core, *spot, mode)
+    raise RuntimeError("no sensible destination found")
+
+
+# saving
+
+def save_edit(arr, dst: Path, quality, qtables, sampling):
+    img = Image.fromarray(arr)
+    if quality == "keep":
+        img.save(dst, format="JPEG", qtables=qtables, subsampling=sampling)
+    else:
+        img.save(dst, format="JPEG", quality=int(quality))
+
+
+def save_preview(orig, edit, mask, dst: Path, width=500):
+    overlay = edit.copy()
+    red = np.zeros_like(edit)
+    red[..., 0] = 255
+    on = mask > 0
+    overlay[on] = (0.55 * edit[on] + 0.45 * red[on]).astype(np.uint8)
+    h = int(orig.shape[0] * width / orig.shape[1])
+    tiles = [cv2.resize(a, (width, h), interpolation=cv2.INTER_AREA) for a in (orig, edit, overlay)]
+    Image.fromarray(np.hstack(tiles)).save(dst)
+
 
 
 # main
@@ -314,7 +559,7 @@ def main() -> int:
             print(f"Folder not found: {d.resolve()}", file=sys.stderr)
             return 1
 
-    panel_classes = {base.norm(c) for c in PANEL_CLASSES.split(",")}
+    panel_classes = {norm(c) for c in PANEL_CLASSES.split(",")}
     for d in (OUTPUT_DIR, MASKS_DIR, PREVIEW_DIR, DEBUG_DIR):
         if d is not None and not (DEBUG_ONLY and d in (OUTPUT_DIR, MASKS_DIR, PREVIEW_DIR)):
             d.mkdir(parents=True, exist_ok=True)
@@ -360,10 +605,10 @@ def main() -> int:
 
     def finish(name, photo, out, mask):
         frac = cv2.countNonZero(mask) / mask.size
-        base.save_edit(out, OUTPUT_DIR / f"{name}.jpg", str(JPEG_QUALITY), photo.qtables, photo.sampling)
+        save_edit(out, OUTPUT_DIR / f"{name}.jpg", str(JPEG_QUALITY), photo.qtables, photo.sampling)
         Image.fromarray(mask).save(MASKS_DIR / f"{name}.png")
         if PREVIEW_DIR is not None:
-            base.save_preview(photo.img, out, mask, PREVIEW_DIR / f"{name}.png")
+            save_preview(photo.img, out, mask, PREVIEW_DIR / f"{name}.png")
         print(f"{name}.jpg  edited area {frac:.1%}")
 
     done = 0
@@ -376,7 +621,7 @@ def main() -> int:
             done += 1; stats["skipped"] += 1
             continue
         try:
-            out, mask = base.make_copy_move(photo, random.Random(f"{SEED}-{name}"), CLONE_MODE)
+            out, mask = make_copy_move(photo, random.Random(f"{SEED}-{name}"), CLONE_MODE)
         except Exception as exc:
             print(f"try next ({name}: {exc})", file=sys.stderr)
             continue
@@ -401,7 +646,7 @@ def main() -> int:
             di += 1
             name = f"SP_{photo.path.stem}__{donor.path.stem}"
             try:
-                result = base.make_splice(photo, donor, random.Random(f"{SEED}-{name}"), CLONE_MODE)
+                result = make_splice(photo, donor, random.Random(f"{SEED}-{name}"), CLONE_MODE)
                 break
             except Exception as exc:
                 print(f"try next ({name}: {exc})", file=sys.stderr)
