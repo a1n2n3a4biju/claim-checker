@@ -232,3 +232,7 @@ Timing on the VM (CPU):
   choose the best 2. Start the JPEG quality estimate.
 - **Day 4 (E4.3, E4.4, E3.2, E3.3):** wrap the chosen detectors as one module returning the contract
   JSON, measure CPU time, build the double-compression check.
+
+  M3:
+  DAY 2:
+  “Run the backend” section (PostgreSQL database claim_checker, copy .env.example to .env, pip install -r requirements.txt, uvicorn app.main:app --reload), and add the extra results fields to the contract
