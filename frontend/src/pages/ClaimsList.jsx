@@ -3,20 +3,16 @@ import { Link as RouterLink } from 'react-router-dom';
 import { Box, Button, ButtonBase, Paper, Skeleton, Typography } from '@mui/material';
 import { listClaims } from '../api/claims';
 import { risk } from '../theme';
+import { claimStatus } from '../utils/risk';
 
-const statusText = {
-  pending_review: 'Waiting for review',
-  approved: 'Approved',
-  escalated: 'Escalated to fraud team',
-};
-
-const columns = { xs: '72px 1fr', md: '96px 1fr 140px 190px' };
+const notAnalyzed = { main: '#8A94A3', label: 'Not analyzed' };
+const columns = { xs: '72px 1fr', md: '96px 1fr 140px 200px' };
 
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
 function ClaimRow({ claim, first }) {
-  const r = risk[claim.overall_risk] ?? risk.low;
+  const r = risk[claim.overall_risk] ?? notAnalyzed;
   return (
     <ButtonBase
       component={RouterLink}
@@ -40,19 +36,19 @@ function ClaimRow({ claim, first }) {
     >
       <Box>
         <Typography sx={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1, color: r.main, fontVariantNumeric: 'tabular-nums' }}>
-          {Math.round(claim.risk_score * 100)}
+          {claim.risk_score == null ? '–' : Math.round(claim.risk_score * 100)}
         </Typography>
         <Typography variant="caption" sx={{ color: r.main, fontWeight: 600 }}>{r.label}</Typography>
       </Box>
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={{ fontWeight: 600 }}>{claim.claimant_name}</Typography>
-        <Typography variant="body2" color="text.secondary" noWrap>{claim.description}</Typography>
+        <Typography variant="body2" color="text.secondary" noWrap>{claim.description || 'No description'}</Typography>
       </Box>
       <Typography variant="body2" sx={{ display: { xs: 'none', md: 'block' }, fontVariantNumeric: 'tabular-nums' }}>
         {formatDate(claim.incident_date)}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ display: { xs: 'none', md: 'block' } }}>
-        {statusText[claim.status] ?? claim.status}
+        {claimStatus(claim)}
       </Typography>
     </ButtonBase>
   );
@@ -62,10 +58,11 @@ export default function ClaimsList() {
   const [claims, setClaims] = useState(null);
 
   useEffect(() => {
-    listClaims().then((data) => setClaims([...data].sort((a, b) => b.risk_score - a.risk_score)));
+    listClaims().then((data) =>
+      setClaims([...data].sort((a, b) => (b.risk_score ?? -1) - (a.risk_score ?? -1))));
   }, []);
 
-  const waiting = claims?.filter((c) => c.status === 'pending_review').length ?? 0;
+  const waiting = claims?.filter((c) => ['medium', 'high'].includes(c.overall_risk) && !c.reviewer_decision).length ?? 0;
 
   return (
     <>
