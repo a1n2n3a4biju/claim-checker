@@ -236,3 +236,5 @@ Timing on the VM (CPU):
   M3:
   DAY 2:
   “Run the backend” section (PostgreSQL database claim_checker, copy .env.example to .env, pip install -r requirements.txt, uvicorn app.main:app --reload), and add the extra results fields to the contract
+DAy 5:
+Run the backend" section; contract additions: reviewer_note, decided_at, the new GET /claims fields, the float() rule, split names tuning and test
