@@ -1,0 +1,5 @@
+detector,load_seconds,seconds_per_image,images
+UniversalFakeDetect,17.5,0.52,195
+Community Forensics,2.8,0.11,195
+B-Free,2.8,3.21,195
+SigLIP,32.6,0.13,195
