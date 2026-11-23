@@ -10,13 +10,22 @@ from . import models
 from .modules import forensics, jpeg_artifacts, ai_detector
 from datetime import datetime, timezone
 from typing import Literal
+from .modules import forensics, jpeg_artifacts, ai_detector
+from contextlib import asynccontextmanager
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("results", exist_ok=True)
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Claim Checker")
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"],
+
+
+@asynccontextmanager
+async def lifespan(app):
+    ai_detector.warm_up()      # load AI models once when the server starts
+    yield
+
+app = FastAPI(title="Claim Checker", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/results", StaticFiles(directory="results"), name="results")
