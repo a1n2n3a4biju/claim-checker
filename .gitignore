@@ -10,3 +10,12 @@ samples/*.jpg
 samples/*.png
 *.db
 .env
+backend/*.jpg
+backend/*.jpeg
+backend/*.png
+backend/*.JPG
+*.pt
+*.pth
+*.safetensors
+dist/
+kaggle.json

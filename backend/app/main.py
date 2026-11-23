@@ -9,6 +9,7 @@ from .database import Base, engine, get_db
 from . import models
 from .modules import forensics, jpeg_artifacts, ai_detector
 from datetime import datetime, timezone
+from typing import Literal
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("results", exist_ok=True)
@@ -30,6 +31,7 @@ class DecisionIn(BaseModel):
     decision: str          # "approved" or "escalated"
     note: str = ""
 
+
 @app.post("/claims")
 def create_claim(data: ClaimIn, db: Session = Depends(get_db)):
     claim = models.Claim(**data.model_dump())
@@ -39,13 +41,30 @@ def create_claim(data: ClaimIn, db: Session = Depends(get_db)):
     return {"id": claim.id, **data.model_dump()}
 
 
-@app.get("/claims")
-def list_claims(db: Session = Depends(get_db)):
-    claims = db.query(models.Claim).order_by(models.Claim.id.desc()).all()
-    return [{"id": c.id, "claimant_name": c.claimant_name,
-             "incident_date": c.incident_date,
-             "created_at": c.created_at.isoformat()} for c in claims]
+def latest_verdict(db: Session, claim_id: int):
+    return (db.query(models.Verdict).filter_by(claim_id=claim_id)
+              .order_by(models.Verdict.id.desc()).first())
 
+@app.get("/claims")
+def list_claims(risk: Literal["low", "medium", "high"] | None = None, db: Session = Depends(get_db)):
+    """List claims. Optional filter: /claims?risk=high (low, medium or high)."""
+    out = []
+    for c in db.query(models.Claim).order_by(models.Claim.id.desc()).all():
+        v = latest_verdict(db, c.id)
+        item = {
+            "id": c.id,
+            "claimant_name": c.claimant_name,
+            "incident_date": c.incident_date,
+            "description": c.description,
+            "created_at": c.created_at.isoformat(),
+            "status": "analyzed" if v else "not_analyzed",
+            "overall_risk": v.overall_risk if v else None,
+            "risk_score": v.risk_score if v else None,
+            "reviewer_decision": v.reviewer_decision if v else None,
+        }
+        if risk is None or item["overall_risk"] == risk:
+            out.append(item)
+    return out
 
 @app.post("/claims/{claim_id}/images")
 async def upload_images(claim_id: int, files: list[UploadFile] = File(...),
@@ -150,6 +169,7 @@ def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
         db.query(models.AnalysisResult).filter_by(image_id=img.id).delete()
         results = run_all_modules(img.file_path)
         for r in results:
+            r["score"] = float(r["score"])           # NumPy/PyTorch numbers -> plain Python
             db.add(models.AnalysisResult(image_id=img.id, module=r["module"],
                                          score=r["score"], flags=r["flags"],
                                          artifact_paths=r["artifacts"]))
@@ -183,11 +203,11 @@ def record_decision(claim_id: int, data: DecisionIn, db: Session = Depends(get_d
 
 @app.get("/review-queue")
 def review_queue(db: Session = Depends(get_db)):
+    """Medium and high claims with no reviewer decision yet, riskiest first."""
     queue = []
-    for claim in db.query(models.Claim).order_by(models.Claim.id).all():
-        verdict = (db.query(models.Verdict).filter_by(claim_id=claim.id)
-                     .order_by(models.Verdict.id.desc()).first())
-        if verdict and verdict.overall_risk in ("medium", "high") and not verdict.reviewer_decision:
-            queue.append({"claim_id": claim.id, "claimant_name": claim.claimant_name,
-                          "overall_risk": verdict.overall_risk, "risk_score": verdict.risk_score})
-    return queue
+    for c in db.query(models.Claim).all():
+        v = latest_verdict(db, c.id)
+        if v and v.overall_risk in ("medium", "high") and not v.reviewer_decision:
+            queue.append({"claim_id": c.id, "claimant_name": c.claimant_name,
+                          "overall_risk": v.overall_risk, "risk_score": v.risk_score})
+    return sorted(queue, key=lambda q: q["risk_score"] or 0, reverse=True)
