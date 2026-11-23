@@ -12,16 +12,30 @@ from datetime import datetime, timezone
 from typing import Literal
 from .modules import forensics, jpeg_artifacts, ai_detector
 from contextlib import asynccontextmanager
+from pathlib import Path
+import joblib
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("results", exist_ok=True)
 Base.metadata.create_all(bind=engine)
 
 
+FUSION_PATH = Path(__file__).resolve().parents[1] / "fusion" / "fusion_model.joblib"
+_fusion = None
 
+
+def load_fusion():
+    """Load the trained fusion model if the file exists; otherwise keep averaging."""
+    global _fusion
+    if FUSION_PATH.exists():
+        _fusion = joblib.load(FUSION_PATH)
+        print(f"Fusion model loaded (thresholds {_fusion['low']} / {_fusion['high']})")
+    else:
+        print("No fusion model found; using average of module scores")
 @asynccontextmanager
 async def lifespan(app):
-    ai_detector.warm_up()      # load AI models once when the server starts
+    ai_detector.warm_up()
+    load_fusion()      # load AI models once when the server starts
     yield
 
 app = FastAPI(title="Claim Checker", lifespan=lifespan)
@@ -125,7 +139,7 @@ def get_results(claim_id: int, db: Session = Depends(get_db)):
             "image_id": img.id,
             "url": "/" + img.file_path,
             "duplicate_of": img.duplicate_of,
-            "risk_score": fuse([m["score"] for m in modules]),         # filled in once analysis exists
+            "risk_score": fuse({m["module"]: m["score"] for m in modules}),        # filled in once analysis exists
             "modules": modules,
         })
 
@@ -144,25 +158,34 @@ def get_results(claim_id: int, db: Session = Depends(get_db)):
     }
 
 # Placeholder thresholds until M2's fusion model is ready
-LOW_THRESHOLD, HIGH_THRESHOLD = 0.4, 0.7
+def run_all_modules(image_path: str, out_dir: str = "results"):
+    """Runs every module. A failing module is reported, not fatal."""
+    results, problems = [], []
+    for name, module in (("forensics", forensics), ("JPEG", jpeg_artifacts), ("AI", ai_detector)):
+        try:
+            r = module.analyze(image_path, out_dir)
+            results.extend(r if isinstance(r, list) else [r])
+        except Exception as e:
+            problems.append(f"The {name} check failed on this photo")
+            print(f"[analyze] {name} failed on {image_path}: {type(e).__name__}: {e}")
+    return results, problems
 
 
-def run_all_modules(image_path: str, out_dir: str = "results") -> list[dict]:
-    results = []
-    for module in (forensics, jpeg_artifacts, ai_detector):
-        r = module.analyze(image_path, out_dir)
-        results.extend(r if isinstance(r, list) else [r])
-    return results
+def fuse(scores: dict) -> float | None:
+    """Combine module scores into one risk score (0-1)."""
+    if not scores:
+        return None
+    if _fusion and all(f in scores for f in _fusion["features"]):
+        x = [[scores[f] for f in _fusion["features"]]]
+        return round(float(_fusion["model"].predict_proba(x)[0, 1]), 2)
+    return round(sum(scores.values()) / len(scores), 2)    # fallback: average
 
 
 def risk_level(score: float) -> str:
-    if score < LOW_THRESHOLD:
+    low, high = (_fusion["low"], _fusion["high"]) if _fusion else (0.4, 0.7)
+    if score < low:
         return "low"
-    return "medium" if score < HIGH_THRESHOLD else "high"
-def fuse(scores: list[float]) -> float:
-    """Placeholder fusion: average of module scores. M2's model replaces this."""
-    return round(sum(scores) / len(scores), 2) if scores else None
-
+    return "medium" if score < high else "high"
 
 @app.post("/claims/{claim_id}/analyze")
 def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
@@ -176,18 +199,20 @@ def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
     for img in images:
         if img.duplicate_of:
             reasons.append(f"Photo {img.id} is identical to an earlier upload (photo {img.duplicate_of})")
-        # remove old results so analyzing twice doesn't duplicate rows
         db.query(models.AnalysisResult).filter_by(image_id=img.id).delete()
-        results = run_all_modules(img.file_path)
+
+        results, problems = run_all_modules(img.file_path)
+        reasons.extend(problems)
         for r in results:
-            r["score"] = float(r["score"])           # NumPy/PyTorch numbers -> plain Python
+            r["score"] = float(r["score"])
             db.add(models.AnalysisResult(image_id=img.id, module=r["module"],
                                          score=r["score"], flags=r["flags"],
                                          artifact_paths=r["artifacts"]))
             reasons.extend(r["flags"])
-        # placeholder fusion: average of module scores (replaced by M2's model)
-        image_score = fuse([r["score"] for r in results])
-        claim_score = max(claim_score, image_score)   # claim = riskiest photo
+
+        image_score = fuse({r["module"]: r["score"] for r in results})
+        if image_score is not None:
+            claim_score = max(claim_score, image_score)     # claim = riskiest photo
 
     verdict = models.Verdict(claim_id=claim_id,
                              overall_risk=risk_level(claim_score),
@@ -197,6 +222,7 @@ def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"claim_id": claim_id, "overall_risk": verdict.overall_risk,
             "risk_score": verdict.risk_score}
+        
 @app.patch("/claims/{claim_id}/decision")
 def record_decision(claim_id: int, data: DecisionIn, db: Session = Depends(get_db)):
     if data.decision not in ("approved", "escalated"):
