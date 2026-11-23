@@ -58,8 +58,16 @@ export async function getReviewQueue() {
   return (await api.get('/review-queue')).data;
 }
 
+
 // decision: 'approved' | 'escalated'
 export async function submitDecision(claimId, decision, note) {
-  if (USE_MOCK) { await delay(300); return { claim_id: claimId, decision, note }; }
+  if (USE_MOCK) {
+    await delay(300);
+    const result = mockResults[claimId];
+    if (result) { result.reviewer_decision = decision; result.reviewer_note = note; }
+    const claim = mockClaims.find((c) => c.id === Number(claimId));
+    if (claim) claim.reviewer_decision = decision;
+    return { claim_id: Number(claimId), decision, note };
+  }
   return (await api.patch(`/claims/${claimId}/decision`, { decision, note })).data;
 }

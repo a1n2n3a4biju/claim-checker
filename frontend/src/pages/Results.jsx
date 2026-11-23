@@ -1,3 +1,4 @@
+import ReviewPanel from '../components/ReviewPanel';
 import { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
@@ -212,6 +213,13 @@ export default function Results() {
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
       <RiskSummary data={data} onAnalyze={runChecks} analyzing={analyzing} />
+      <ReviewPanel
+        claimId={data.claim_id}
+        risk={data.overall_risk}
+        decision={data.reviewer_decision}
+        note={data.reviewer_note}
+        onSaved={load}
+      />
 
       {photo && (
         <>
