@@ -1,0 +1,196 @@
+folder,filename,label,role,generator,ufd,community_forensics,bfree,siglip
+Scripted_edits,CM_P_004.jpg,fake,edit,,0.0226,0.0005,0.0105,0.0176
+Scripted_edits,CM_P_005.jpg,fake,edit,,0.0136,0.0446,0.6342,0.0015
+Scripted_edits,CM_P_012.jpg,fake,edit,,0.0010,0.0001,0.0212,0.0029
+Scripted_edits,CM_P_013.jpg,fake,edit,,0.0283,0.0009,0.0035,0.2089
+Scripted_edits,CM_P_014.jpg,fake,edit,,0.0682,0.0002,0.2942,0.0023
+Scripted_edits,CM_P_018.jpg,fake,edit,,0.0221,0.0002,0.0072,0.9906
+Scripted_edits,CM_P_021.jpg,fake,edit,,0.0284,0.0003,0.0070,0.0032
+Scripted_edits,CM_P_023.jpg,fake,edit,,0.0194,0.0131,0.0188,0.8047
+Scripted_edits,CM_P_026.jpg,fake,edit,,0.0112,0.0004,0.0095,0.9996
+Scripted_edits,CM_P_027.jpg,fake,edit,,0.0402,0.0000,0.0014,0.0021
+Scripted_edits,CM_P_028.jpg,fake,edit,,0.0020,0.0001,0.0035,0.9727
+Scripted_edits,CM_P_031.jpg,fake,edit,,0.0074,0.3471,0.0280,0.5046
+Scripted_edits,CM_P_038.jpg,fake,edit,,0.0455,0.0026,0.0134,0.0106
+Scripted_edits,CM_P_040.jpg,fake,edit,,0.0671,0.0012,0.0104,0.4090
+Scripted_edits,CM_P_050.jpg,fake,edit,,0.0230,0.3298,0.1763,0.9978
+Scripted_edits,SP_P_001__D_006.jpg,fake,edit,,0.0164,0.0003,0.0034,0.0101
+Scripted_edits,SP_P_002__D_013.jpg,fake,edit,,0.0310,0.1065,0.3069,0.2456
+Scripted_edits,SP_P_011__D_015.jpg,fake,edit,,0.2308,0.0099,0.3101,0.0296
+Scripted_edits,SP_P_015__D_002.jpg,fake,edit,,0.0320,0.0002,0.0340,0.0023
+Scripted_edits,SP_P_017__D_014.jpg,fake,edit,,0.0468,0.0158,0.1099,0.0079
+Scripted_edits,SP_P_019__D_003.jpg,fake,edit,,0.0042,0.0003,0.1238,0.0061
+Scripted_edits,SP_P_024__D_001.jpg,fake,edit,,0.0355,0.0015,0.0079,0.9988
+Scripted_edits,SP_P_029__D_004.jpg,fake,edit,,0.0038,0.0005,0.0014,0.9867
+Scripted_edits,SP_P_030__D_009.jpg,fake,edit,,0.0086,0.0002,0.0016,0.9970
+Scripted_edits,SP_P_032__D_010.jpg,fake,edit,,0.6100,0.0008,0.1128,0.0058
+Scripted_edits,SP_P_033__D_007.jpg,fake,edit,,0.0064,0.0001,0.0640,0.0010
+Scripted_edits,SP_P_039__D_012.jpg,fake,edit,,0.0176,0.0003,0.1152,0.0218
+Scripted_edits,SP_P_043__D_011.jpg,fake,edit,,0.1482,0.0012,0.0086,0.0183
+Scripted_edits,SP_P_044__D_010.jpg,fake,edit,,0.1968,0.0003,0.0034,0.9981
+Scripted_edits,SP_P_049__D_005.jpg,fake,edit,,0.3076,0.0009,0.3835,0.2354
+ai,AI_GEM_001.jpg,fake,ai,Gemini,0.0857,0.0001,0.0856,0.0001
+ai,AI_GEM_002.jpg,fake,ai,Gemini,0.1963,0.0002,0.0626,0.0005
+ai,AI_GEM_003.jpg,fake,ai,Gemini,0.0084,0.0001,0.6532,0.9981
+ai,AI_GEM_004.jpg,fake,ai,Gemini,0.0001,0.0036,0.0566,0.0009
+ai,AI_GEM_005.jpg,fake,ai,Gemini,0.0013,0.0016,0.9684,0.9969
+ai,AI_GEM_006.jpg,fake,ai,Gemini,0.0426,0.0099,0.8596,0.0001
+ai,AI_GEM_007.jpg,fake,ai,Gemini,0.0008,0.0006,0.0195,0.0004
+ai,AI_GEM_008.jpg,fake,ai,Gemini,0.0340,0.0003,0.9085,0.9999
+ai,AI_GEM_009.jpg,fake,ai,Gemini,0.1389,0.0005,0.1212,0.0027
+ai,AI_GEM_010.jpg,fake,ai,Gemini,0.2705,0.0003,0.0144,0.0032
+ai,AI_GPT_001.jpg,fake,ai,ChatGPT,0.1126,0.0002,0.3510,0.0001
+ai,AI_GPT_002.jpg,fake,ai,ChatGPT,0.0118,0.0004,0.6019,0.0006
+ai,AI_GPT_003.jpg,fake,ai,ChatGPT,0.1944,0.0009,0.0477,0.0003
+ai,AI_GPT_004.jpg,fake,ai,ChatGPT,0.0039,0.0001,0.0274,0.0000
+ai,AI_GPT_005.jpg,fake,ai,ChatGPT,0.0459,0.0201,0.1921,0.0009
+ai,AI_GPT_006.jpg,fake,ai,ChatGPT,0.4050,0.2910,0.0025,0.0001
+ai,AI_GPT_007.jpg,fake,ai,ChatGPT,0.0962,0.0000,0.0162,0.0096
+ai,AI_GPT_008.jpg,fake,ai,ChatGPT,0.0018,0.0002,0.0116,0.0005
+ai,AI_GPT_009.jpg,fake,ai,ChatGPT,0.1605,0.0029,0.1004,0.0005
+ai,AI_GPT_010.jpg,fake,ai,ChatGPT,0.0880,0.0000,0.0262,0.0010
+ai,AI_SD_001.jpg,fake,ai,Stable Diffusion,0.2836,0.9969,0.9997,0.0014
+ai,AI_SD_002.jpg,fake,ai,Stable Diffusion,0.5467,0.9970,0.9998,0.0089
+ai,AI_SD_003.jpg,fake,ai,Stable Diffusion,0.0322,0.9895,0.9983,0.0003
+ai,AI_SD_004.jpg,fake,ai,Stable Diffusion,0.0001,0.9997,0.9998,0.0254
+ai,AI_SD_005.jpg,fake,ai,Stable Diffusion,0.0056,0.3554,0.9623,0.0034
+ai,AI_SD_006.jpg,fake,ai,Stable Diffusion,0.0045,0.4175,0.9996,0.0008
+ai,AI_SD_007.jpg,fake,ai,Stable Diffusion,0.0234,1.0000,0.9988,0.0013
+ai,AI_SD_008.jpg,fake,ai,Stable Diffusion,0.2120,0.9841,0.9995,0.0042
+ai,AI_SD_009.jpg,fake,ai,Stable Diffusion,0.0040,0.9999,0.9998,0.0011
+ai,AI_SD_010.jpg,fake,ai,Stable Diffusion,0.0012,1.0000,0.9998,1.0000
+ai_inpaint,IN_P_001.jpg,fake,ai,SD inpainting,0.0350,0.0003,0.3922,0.0297
+ai_inpaint,IN_P_002.jpg,fake,ai,SD inpainting,0.2697,0.0186,0.3121,0.0457
+ai_inpaint,IN_P_003.jpg,fake,ai,SD inpainting,0.0113,0.0025,0.0478,0.3475
+ai_inpaint,IN_P_006.jpg,fake,ai,SD inpainting,0.0194,0.0000,0.3949,0.9982
+ai_inpaint,IN_P_007.jpg,fake,ai,SD inpainting,0.0935,0.0013,0.0501,0.0234
+ai_inpaint,IN_P_009.jpg,fake,ai,SD inpainting,0.0412,0.0400,0.0551,0.0020
+ai_inpaint,IN_P_010.jpg,fake,ai,SD inpainting,0.0203,0.0003,0.3945,0.0013
+ai_inpaint,IN_P_011.jpg,fake,ai,SD inpainting,0.2060,0.0036,0.9746,0.9953
+ai_inpaint,IN_P_012.jpg,fake,ai,SD inpainting,0.0101,0.0006,0.0355,0.0019
+ai_inpaint,IN_P_018.jpg,fake,ai,SD inpainting,0.0364,0.0003,0.0103,0.9968
+ai_inpaint,IN_P_021.jpg,fake,ai,SD inpainting,0.0200,0.0008,0.0736,0.0021
+ai_inpaint,IN_P_024.jpg,fake,ai,SD inpainting,0.0371,0.0003,0.0388,0.9989
+ai_inpaint,IN_P_026.jpg,fake,ai,SD inpainting,0.0165,0.0002,0.0596,0.9996
+ai_inpaint,IN_P_032.jpg,fake,ai,SD inpainting,0.7467,0.0002,0.0726,0.9966
+ai_inpaint,IN_P_033.jpg,fake,ai,SD inpainting,0.0088,0.0000,0.9403,0.0006
+careful_manual_edits,ME_P_005.jpg,fake,edit,,0.0116,0.0315,0.6267,0.0015
+careful_manual_edits,ME_P_011.jpg,fake,edit,,0.5034,0.0106,0.2108,0.0322
+careful_manual_edits,ME_P_014.jpg,fake,edit,,0.0863,0.0001,0.3244,0.0021
+careful_manual_edits,ME_P_018.jpg,fake,edit,,0.0124,0.0002,0.0076,0.9945
+careful_manual_edits,ME_P_021.jpg,fake,edit,,0.0225,0.0003,0.0120,0.0026
+careful_manual_edits,ME_P_028.jpg,fake,edit,,0.0032,0.0002,0.0049,0.9928
+careful_manual_edits,ME_P_032.jpg,fake,edit,,0.8002,0.0008,0.0837,0.0058
+careful_manual_edits,ME_P_040.jpg,fake,edit,,0.0522,0.0012,0.0040,0.2607
+careful_manual_edits,ME_P_045.jpg,fake,edit,,0.0601,0.0135,0.0085,0.2169
+careful_manual_edits,ME_P_050.jpg,fake,edit,,0.0141,0.5295,0.1002,0.9977
+forwarded_fake,FW_AI_GEM_001.jpg,fake,ai,Gemini,0.1490,0.0001,0.0093,0.0002
+forwarded_fake,FW_AI_GEM_002.jpg,fake,ai,Gemini,0.2770,0.0017,0.0489,0.0009
+forwarded_fake,FW_AI_GEM_005.jpg,fake,ai,Gemini,0.0031,0.0010,0.2362,0.9989
+forwarded_fake,FW_AI_GPT_003.jpg,fake,ai,ChatGPT,0.1984,0.0012,0.0568,0.0003
+forwarded_fake,FW_AI_GPT_004.jpg,fake,ai,ChatGPT,0.0107,0.0000,0.0149,0.0000
+forwarded_fake,FW_AI_GPT_010.jpg,fake,ai,ChatGPT,0.0416,0.0000,0.1168,0.0018
+forwarded_fake,FW_AI_SD_002.jpg,fake,ai,Stable Diffusion,0.5619,0.9874,0.9998,0.0011
+forwarded_fake,FW_AI_SD_005.jpg,fake,ai,Stable Diffusion,0.0049,0.0457,0.9315,0.0020
+forwarded_fake,FW_AI_SD_009.jpg,fake,ai,Stable Diffusion,0.0023,0.9958,0.9998,0.0042
+forwarded_fake,FW_AI_SD_010.jpg,fake,ai,Stable Diffusion,0.0008,0.9998,0.9998,1.0000
+forwarded_genuine,FW_P_001.jpg,real,genuine,,0.0042,0.0001,0.0025,0.0275
+forwarded_genuine,FW_P_002.jpg,real,genuine,,0.0648,0.0091,0.0068,0.0161
+forwarded_genuine,FW_P_003.jpg,real,genuine,,0.0062,0.0004,0.0020,0.8276
+forwarded_genuine,FW_P_004.jpg,real,genuine,,0.0238,0.0003,0.0264,0.0116
+forwarded_genuine,FW_P_005.jpg,real,genuine,,0.0106,0.0054,0.5008,0.0013
+forwarded_genuine,FW_P_006.jpg,real,genuine,,0.0196,0.0000,0.0029,0.9982
+forwarded_genuine,FW_P_007.jpg,real,genuine,,0.0246,0.0001,0.0107,0.9882
+forwarded_genuine,FW_P_008.jpg,real,genuine,,0.2072,0.0003,0.0004,0.0264
+forwarded_genuine,FW_P_009.jpg,real,genuine,,0.0596,0.0033,0.2521,0.0031
+forwarded_genuine,FW_P_011.jpg,real,genuine,,0.2670,0.0031,0.2624,0.9966
+forwarded_genuine,FW_P_012.jpg,real,genuine,,0.0011,0.0000,0.0204,0.0026
+forwarded_genuine,FW_P_013.jpg,real,genuine,,0.0305,0.0001,0.0022,0.0468
+forwarded_genuine,FW_P_014.jpg,real,genuine,,0.0860,0.0001,0.1335,0.0019
+forwarded_genuine,FW_P_015.jpg,real,genuine,,0.0401,0.0002,0.0266,0.0034
+forwarded_genuine,FW_P_016.jpg,real,genuine,,0.0317,0.0043,0.0132,0.9893
+forwarded_genuine,FW_P_017.jpg,real,genuine,,0.1092,0.0592,0.0770,0.0078
+forwarded_genuine,FW_P_018.jpg,real,genuine,,0.0181,0.0002,0.0108,0.7911
+forwarded_genuine,FW_P_019.jpg,real,genuine,,0.0069,0.0002,0.3867,0.0032
+forwarded_genuine,FW_P_020.jpg,real,genuine,,0.0613,0.0001,0.3650,0.9974
+forwarded_genuine,FW_P_021.jpg,real,genuine,,0.0170,0.0001,0.0171,0.0041
+forwarded_genuine,FW_P_022.jpg,real,genuine,,0.0022,0.0001,0.0060,0.0024
+forwarded_genuine,FW_P_023.jpg,real,genuine,,0.0199,0.0155,0.0128,0.5107
+forwarded_genuine,FW_P_024.jpg,real,genuine,,0.0249,0.0001,0.0050,0.9989
+forwarded_genuine,FW_P_025.jpg,real,genuine,,0.0058,0.0014,0.0184,0.0117
+forwarded_genuine,FW_P_026.jpg,real,genuine,,0.0292,0.0002,0.0097,0.9996
+forwarded_genuine,FW_P_027.jpg,real,genuine,,0.0346,0.0000,0.0018,0.0016
+forwarded_genuine,FW_P_028.jpg,real,genuine,,0.0018,0.0002,0.0107,0.5465
+forwarded_genuine,FW_P_029.jpg,real,genuine,,0.0040,0.0006,0.0015,0.9962
+forwarded_genuine,FW_P_030.jpg,real,genuine,,0.0046,0.0002,0.0011,0.9735
+forwarded_genuine,FW_P_031.jpg,real,genuine,,0.0056,0.0573,0.0274,0.2631
+forwarded_genuine,FW_P_032.jpg,real,genuine,,0.6466,0.0006,0.0361,0.9859
+forwarded_genuine,FW_P_033.jpg,real,genuine,,0.0092,0.0000,0.0724,0.0008
+forwarded_genuine,FW_P_034.jpg,real,genuine,,0.0117,0.0002,0.0080,0.0007
+forwarded_genuine,FW_P_035.jpg,real,genuine,,0.0371,0.0010,0.1206,0.0082
+forwarded_genuine,FW_P_036.jpg,real,genuine,,0.0410,0.0004,0.0107,0.7618
+genuine,P_001.jpg,real,genuine,,0.0086,0.0002,0.0013,0.0080
+genuine,P_002.jpg,real,genuine,,0.0224,0.0325,0.0111,0.2118
+genuine,P_003.jpg,real,genuine,,0.0062,0.0019,0.0016,0.9685
+genuine,P_004.jpg,real,genuine,,0.0186,0.0005,0.0120,0.0390
+genuine,P_005.jpg,real,genuine,,0.0107,0.0336,0.5950,0.0015
+genuine,P_006.jpg,real,genuine,,0.0255,0.0000,0.0027,0.9983
+genuine,P_007.jpg,real,genuine,,0.0136,0.0003,0.0180,0.9452
+genuine,P_008.jpg,real,genuine,,0.1305,0.0009,0.0006,0.0372
+genuine,P_009.jpg,real,genuine,,0.0279,0.0614,0.1327,0.0015
+genuine,P_010.jpg,real,genuine,,0.0065,0.0006,0.0035,0.0021
+genuine,P_011.jpg,real,genuine,,0.2085,0.0097,0.2658,0.0129
+genuine,P_012.jpg,real,genuine,,0.0007,0.0001,0.0211,0.0027
+genuine,P_013.jpg,real,genuine,,0.0203,0.0012,0.0035,0.2520
+genuine,P_014.jpg,real,genuine,,0.0743,0.0001,0.3705,0.0019
+genuine,P_015.jpg,real,genuine,,0.0213,0.0003,0.0296,0.0029
+genuine,P_016.jpg,real,genuine,,0.0321,0.0009,0.0071,0.9944
+genuine,P_017.jpg,real,genuine,,0.0560,0.0535,0.0909,0.0167
+genuine,P_018.jpg,real,genuine,,0.0144,0.0002,0.0064,0.9928
+genuine,P_019.jpg,real,genuine,,0.0038,0.0002,0.1219,0.0061
+genuine,P_020.jpg,real,genuine,,0.0380,0.0004,0.2651,0.9982
+genuine,P_021.jpg,real,genuine,,0.0223,0.0002,0.0069,0.0026
+genuine,P_022.jpg,real,genuine,,0.0018,0.0004,0.0220,0.0032
+genuine,P_023.jpg,real,genuine,,0.0185,0.0232,0.0170,0.7195
+genuine,P_024.jpg,real,genuine,,0.0179,0.0008,0.0037,0.9987
+genuine,P_025.jpg,real,genuine,,0.0037,0.0010,0.0205,0.7987
+genuine,P_026.jpg,real,genuine,,0.0096,0.0005,0.0094,0.9996
+genuine,P_027.jpg,real,genuine,,0.0320,0.0000,0.0015,0.0026
+genuine,P_028.jpg,real,genuine,,0.0017,0.0002,0.0056,0.9161
+genuine,P_029.jpg,real,genuine,,0.0035,0.0008,0.0011,0.8666
+genuine,P_030.jpg,real,genuine,,0.0079,0.0003,0.0014,0.9939
+genuine,P_031.jpg,real,genuine,,0.0048,0.3084,0.0305,0.4090
+genuine,P_032.jpg,real,genuine,,0.6972,0.0006,0.0586,0.0070
+genuine,P_033.jpg,real,genuine,,0.0048,0.0000,0.0294,0.0011
+genuine,P_034.jpg,real,genuine,,0.0083,0.0006,0.0152,0.0007
+genuine,P_035.jpg,real,genuine,,0.0267,0.0039,0.0399,0.5941
+genuine,P_036.jpg,real,genuine,,0.0352,0.0011,0.0040,0.0026
+genuine,P_037.jpg,real,genuine,,0.1071,0.0136,0.0543,0.9945
+genuine,P_038.jpg,real,genuine,,0.0511,0.0030,0.0122,0.0092
+genuine,P_039.jpg,real,genuine,,0.0152,0.0003,0.0839,0.0150
+genuine,P_040.jpg,real,genuine,,0.0465,0.0007,0.0024,0.2510
+genuine,P_041.jpg,real,genuine,,0.0952,0.0232,0.1796,0.9187
+genuine,P_042.jpg,real,genuine,,0.0017,0.2528,0.0141,0.0135
+genuine,P_043.jpg,real,genuine,,0.1088,0.0008,0.0009,0.0066
+genuine,P_044.jpg,real,genuine,,0.1726,0.0004,0.0051,0.9977
+genuine,P_045.jpg,real,genuine,,0.0507,0.0245,0.0072,0.3343
+genuine,P_046.jpg,real,genuine,,0.1281,0.0051,0.0097,0.1296
+genuine,P_047.jpg,real,genuine,,0.0231,0.0005,0.0039,0.4072
+genuine,P_048.jpg,real,genuine,,0.0299,0.0053,0.0965,0.0018
+genuine,P_049.jpg,real,genuine,,0.3286,0.0014,0.4200,0.0131
+genuine,P_050.jpg,real,genuine,,0.0190,0.3671,0.1097,0.9976
+hard_genuine,P_051.jpg,real,genuine,,0.0033,0.0014,0.0088,0.0019
+hard_genuine,P_052.jpg,real,genuine,,0.0187,0.0042,0.0810,0.9988
+hard_genuine,P_053.jpg,real,genuine,,0.5309,0.0001,0.0812,0.0120
+hard_genuine,P_054.jpg,real,genuine,,0.0020,0.0003,0.0023,0.0087
+hard_genuine,P_055.jpg,real,genuine,,0.0292,0.0001,0.0016,0.0066
+hard_genuine,P_056.jpg,real,genuine,,0.0024,0.0001,0.0735,0.0011
+hard_genuine,P_057.jpg,real,genuine,,0.0401,0.0016,0.0532,0.0026
+hard_genuine,P_058.jpg,real,genuine,,0.0071,0.0009,0.0238,0.0127
+hard_genuine,P_059.jpg,real,genuine,,0.0451,0.0047,0.0038,0.0480
+hard_genuine,P_060.jpg,real,genuine,,0.0518,0.0001,0.0012,0.0002
+hard_genuine,P_061.jpg,real,genuine,,0.0009,0.0014,0.0043,0.0059
+hard_genuine,P_062.jpg,real,genuine,,0.0006,0.0003,0.0012,0.0050
+hard_genuine,P_063.jpg,real,genuine,,0.2094,0.0007,0.4025,0.9961
+hard_genuine,P_064.jpg,real,genuine,,0.0102,0.0001,0.0010,0.0008
+hard_genuine,P_065.jpg,real,genuine,,0.0088,0.0001,0.0018,0.9989
