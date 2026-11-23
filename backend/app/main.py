@@ -138,6 +138,8 @@ def get_results(claim_id: int, db: Session = Depends(get_db)):
         "risk_score": verdict.risk_score if verdict else None,
         "reasons": verdict.reasons if verdict else [],
         "reviewer_decision": verdict.reviewer_decision if verdict else None,
+        "reviewer_note": verdict.reviewer_note if verdict else None,
+        "decided_at": verdict.decided_at.isoformat() if verdict and verdict.decided_at else None,
         "images": images,
     }
 
