@@ -1,0 +1,5 @@
+detector,ai_caught,genuine_flagged,forwarded_genuine_flagged,auc
+UniversalFakeDetect,3 of 55,3 of 100,1 of 35,0.572
+Community Forensics,11 of 55,0 of 100,0 of 35,0.596
+B-Free,21 of 55,2 of 100,1 of 35,0.827
+SigLIP,12 of 55,36 of 100,15 of 35,0.317
