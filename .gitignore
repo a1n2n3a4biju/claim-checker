@@ -20,5 +20,7 @@ backend/*.JPG
 *.safetensors
 dist/
 kaggle.json
+evaluation/results_tuning.md
 .vscode/
 frontend/public/mock/*.jpg
+
