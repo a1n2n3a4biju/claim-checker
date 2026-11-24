@@ -127,12 +127,21 @@ def _detector(name):
 
 # ------------------------------------------------------------------ module entry point
 
+# Reviewer-facing reason per detector: says what kind of AI fake it points to.
+REASONS = {
+    "community_forensics": "This photo may be fully AI-generated ({pct})",
+    "bfree": "Parts of this photo may have been created or altered with AI ({pct})",
+    "ufd": "This photo may be AI-generated ({pct})",
+    "siglip": "This photo may be AI-generated ({pct})",
+}
+
+
 def _result(slot, name, image_path):
     score = round(float(_detector(name)(image_path)), 4)
     score = min(max(score, 0.0), 1.0)
     flags = []
     if score >= FLAG_THRESHOLD:
-        flags.append(f"An AI-image detector rates this photo as likely AI-generated ({score:.0%})")
+        flags.append(REASONS.get(name, "This photo may be AI-generated ({pct})").format(pct=f"{score:.0%}"))
     return {"module": slot, "score": score, "flags": flags, "artifacts": {}}
 
 
