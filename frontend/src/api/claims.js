@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { mockClaims, mockResults } from '../mocks/mockData';
 
-// Set VITE_USE_MOCK=false in frontend/.env to use the real backend.
-export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+// Uses the real backend unless VITE_USE_MOCK=true is set in frontend/.env.local
+export const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const api = axios.create({ baseURL: API_URL });
@@ -61,7 +61,6 @@ export async function getReviewQueue() {
   }
   return (await api.get('/review-queue')).data;
 }
-
 
 // decision: 'approved' | 'escalated'
 export async function submitDecision(claimId, decision, note) {

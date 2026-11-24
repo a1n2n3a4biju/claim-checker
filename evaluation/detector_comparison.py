@@ -166,7 +166,7 @@ def split_filter(args):
         split_col = cols.get(args.split_col.lower())
         if not file_col or not split_col:
             sys.exit(f"Manifest columns are {reader.fieldnames}. Use --split-col to name the split column.")
-        keep = {Path(r[file_col].strip()).name for r in reader
+        keep = {Path(r[file_col].strip().replace("\\", "/")).name.lower() for r in reader
                 if r[split_col].strip().lower() == args.split.lower()}
     if not keep:
         sys.exit(f"No manifest rows have {split_col} = '{args.split}'.")
@@ -189,7 +189,7 @@ def cmd_compare(args):
 
     keep = split_filter(args)
     if keep is not None:
-        rows = [r for r in rows if r["filename"] in keep]
+        rows = [r for r in rows if r["filename"].lower() in keep]
     scope = f"{args.split} split" if args.split else "all images (no split applied)"
     dets = [d for d in DETECTORS if any(r.get(d) for r in rows)]
     t = args.threshold

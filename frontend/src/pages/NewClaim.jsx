@@ -17,7 +17,7 @@ const formatSize = (bytes) =>
 const stageText = {
   creating: 'Creating the claim…',
   uploading: 'Uploading photos…',
-  analyzing: 'Running the checks on each photo…',
+  analyzing: 'Running the checks on each photo… The first analysis after the server starts can take up to a minute.',
 };
 
 function Section({ title, children }) {
