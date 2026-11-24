@@ -1,12 +1,30 @@
 import { useEffect, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
-import { Box, Button, ButtonBase, Paper, Skeleton, Typography } from '@mui/material';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
+import {
+  Alert, Box, Button, ButtonBase, Paper, Skeleton, ToggleButton, ToggleButtonGroup, Typography,
+} from '@mui/material';
 import { listClaims } from '../api/claims';
 import { risk } from '../theme';
 import { claimStatus } from '../utils/risk';
 
 const notAnalyzed = { main: '#8A94A3', label: 'Not analyzed' };
 const columns = { xs: '72px 1fr', md: '96px 1fr 140px 200px' };
+
+const FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'high', label: 'High', color: risk.high.main },
+  { value: 'medium', label: 'Medium', color: risk.medium.main },
+  { value: 'low', label: 'Low', color: risk.low.main },
+  { value: 'none', label: 'Not analyzed', color: notAnalyzed.main },
+];
+
+const emptyText = {
+  all: 'No claims yet. Create one to start a review.',
+  high: 'No high-risk claims.',
+  medium: 'No medium-risk claims.',
+  low: 'No low-risk claims.',
+  none: 'Every claim has been analyzed.',
+};
 
 const formatDate = (iso) =>
   new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -55,26 +73,70 @@ function ClaimRow({ claim, first }) {
 }
 
 export default function ClaimsList() {
+  const [params, setParams] = useSearchParams();
+  const filter = FILTERS.some((f) => f.value === params.get('risk')) ? params.get('risk') : 'all';
   const [claims, setClaims] = useState(null);
+  const [error, setError] = useState('');
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    listClaims().then((data) =>
-      setClaims([...data].sort((a, b) => (b.risk_score ?? -1) - (a.risk_score ?? -1))));
-  }, []);
+    let ignore = false;                        // drop answers that arrive after the filter changed
+    setClaims(null);
+    setError('');
+    const backendRisk = ['low', 'medium', 'high'].includes(filter) ? filter : undefined;
+    listClaims(backendRisk)
+      .then((data) => {
+        if (ignore) return;
+        const list = filter === 'none' ? data.filter((c) => !c.overall_risk) : data;
+        setClaims([...list].sort((a, b) => (b.risk_score ?? -1) - (a.risk_score ?? -1)));
+      })
+      .catch((e) => { if (!ignore) setError(e?.response?.data?.detail ?? e.message); });
+    return () => { ignore = true; };
+  }, [filter, reload]);
+
+  const changeFilter = (_, value) => {
+    if (!value) return;                        // clicking the active button keeps it selected
+    setParams(value === 'all' ? {} : { risk: value });
+  };
 
   const waiting = claims?.filter((c) => ['medium', 'high'].includes(c.overall_risk) && !c.reviewer_decision).length ?? 0;
+  const count = claims?.length ?? 0;
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 2, mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 2, mb: 3, flexWrap: 'wrap' }}>
         <Box>
           <Typography variant="h4" component="h1">Review queue</Typography>
           <Typography color="text.secondary">
-            {claims ? `${waiting} ${waiting === 1 ? 'claim' : 'claims'} waiting for review, highest risk first` : 'Loading claims…'}
+            {claims
+              ? `${count} ${count === 1 ? 'claim' : 'claims'}, ${waiting} waiting for review, highest risk first`
+              : 'Loading claims…'}
           </Typography>
         </Box>
         <Button variant="contained" component={RouterLink} to="/claims/new">New claim</Button>
       </Box>
+
+      <ToggleButtonGroup
+        value={filter}
+        exclusive
+        onChange={changeFilter}
+        size="small"
+        aria-label="Filter by risk level"
+        sx={{ mb: 2, flexWrap: 'wrap', bgcolor: 'background.paper' }}
+      >
+        {FILTERS.map((f) => (
+          <ToggleButton key={f.value} value={f.value} sx={{ px: 1.75, textTransform: 'none', fontWeight: 600 }}>
+            {f.color && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: f.color, mr: 1 }} />}
+            {f.label}
+          </ToggleButton>
+        ))}
+      </ToggleButtonGroup>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }} action={<Button color="inherit" onClick={() => setReload((n) => n + 1)}>Try again</Button>}>
+          The claims couldn't be loaded: {error}
+        </Alert>
+      )}
 
       <Paper sx={{ overflow: 'hidden' }}>
         <Box
@@ -95,13 +157,15 @@ export default function ClaimsList() {
           ))}
         </Box>
 
-        {claims === null &&
+        {claims === null && !error &&
           [0, 1, 2].map((i) => <Skeleton key={i} variant="rectangular" height={72} sx={{ m: 2 }} />)}
 
         {claims?.length === 0 && (
           <Box sx={{ p: 4, textAlign: 'center' }}>
-            <Typography sx={{ mb: 2 }}>No claims yet. Create one to start a review.</Typography>
-            <Button variant="outlined" component={RouterLink} to="/claims/new">New claim</Button>
+            <Typography sx={{ mb: 2 }}>{emptyText[filter]}</Typography>
+            {filter === 'all'
+              ? <Button variant="outlined" component={RouterLink} to="/claims/new">New claim</Button>
+              : <Button variant="outlined" onClick={() => setParams({})}>Show all claims</Button>}
           </Box>
         )}
 

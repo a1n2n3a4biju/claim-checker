@@ -3,6 +3,7 @@ __pycache__/
 weights/
 uploads/
 results/
+!evaluation/results/
 data/images/
 node_modules/
 third_party/
@@ -19,3 +20,5 @@ backend/*.JPG
 *.safetensors
 dist/
 kaggle.json
+.vscode/
+frontend/public/mock/*.jpg
