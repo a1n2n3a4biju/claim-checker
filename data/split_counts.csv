@@ -1,0 +1,9 @@
+category,tuning,test,total
+ai,18,12,30
+ai_inpaint,9,6,15
+edit_manual,6,4,10
+edit_script,18,12,30
+forwarded_fake,6,4,10
+forwarded_genuine,21,14,35
+genuine,30,20,50
+hard_genuine,9,6,15
