@@ -204,3 +204,10 @@ Rules:
 - `overall_risk` is `"low"`, `"medium"` or `"high"`
 - A claim's risk is the highest risk among its photos
 - The backend turns `heatmap_path` into `heatmap_url` so React can show it
+
+
+## Frontend
+See [frontend/README.md](frontend/README.md) for setup, running and mock mode.
+
+## AI detectors
+See [docs/DETECTORS_README.md](docs/DETECTORS_README.md) for model setup, weights and results.
