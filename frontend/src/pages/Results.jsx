@@ -114,7 +114,7 @@ function PhotoPicker({ images, selected, riskiestId, onSelect }) {
   return (
     <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
       {images.map((img) => {
-        const level = riskLevel(img.risk_score);
+        const level = img.risk_level ?? riskLevel(img.risk_score);
         const isSelected = img.image_id === selected;
         return (
           <ButtonBase
