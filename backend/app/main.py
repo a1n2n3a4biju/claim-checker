@@ -192,8 +192,9 @@ def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
 
         image_score = fuse({r["module"]: r["score"] for r in results})
         if image_score is not None:
-            claim_score = max(claim_score, image_score)    # claim = riskiest photo
-
+            claim_score = max(claim_score, image_score)
+                # claim = riskiest photo
+    reasons = list(dict.fromkeys(reasons))      # remove repeated reasons, keep order
     verdict = models.Verdict(claim_id=claim_id,
                              overall_risk=risk_level(claim_score),
                              risk_score=round(claim_score, 2),
