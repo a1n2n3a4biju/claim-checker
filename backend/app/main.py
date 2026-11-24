@@ -221,14 +221,15 @@ def get_results(claim_id: int, db: Session = Depends(get_db)):
                 artifacts["heatmap_url"] = "/" + r.artifact_paths["heatmap_path"]
             modules.append({"module": r.module, "score": r.score,
                             "flags": r.flags or [], "artifacts": artifacts})
+        image_score = fuse({m["module"]: m["score"] for m in modules})
         images.append({
             "image_id": img.id,
             "url": "/" + img.file_path,
             "duplicate_of": img.duplicate_of,
-            "risk_score": fuse({m["module"]: m["score"] for m in modules}),
+            "risk_score": image_score,
+            "risk_level": risk_level(image_score) if image_score is not None else None,
             "modules": modules,
         })
-
     return {
         "claim_id": claim.id,
         "claimant_name": claim.claimant_name,
