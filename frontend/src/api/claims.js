@@ -15,9 +15,13 @@ export const assetUrl = (path) => {
   return `${API_URL}${path}`;
 };
 
-export async function listClaims() {
-  if (USE_MOCK) { await delay(300); return mockClaims; }
-  return (await api.get('/claims')).data;
+// risk: 'low' | 'medium' | 'high' | undefined (all claims)
+export async function listClaims(risk) {
+  if (USE_MOCK) {
+    await delay(300);
+    return risk ? mockClaims.filter((c) => c.overall_risk === risk) : mockClaims;
+  }
+  return (await api.get('/claims', { params: risk ? { risk } : {} })).data;
 }
 
 export async function createClaim(claim) {
