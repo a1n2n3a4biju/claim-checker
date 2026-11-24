@@ -10,7 +10,7 @@ export const mockClaims = [
   { id: 5, claimant_name: 'Arjun Das',     incident_date: '2026-11-19', description: 'Broken side mirror',                          created_at: '2026-11-20T08:05:00', overall_risk: null,     risk_score: null, reviewer_decision: null },
 ];
 
-const HEAT = '/mock/claim_photo.jpg';
+const HEAT = '/mock/claim_photo.svg';
 
 // One module result, in the contract shape: { module, score, flags, artifacts }
 const mod = (module, score, flags = [], heatmap = true) =>

@@ -32,7 +32,7 @@ export async function createClaim(claim) {
 export async function uploadImages(claimId, files, onProgress) {
   if (USE_MOCK) {
     for (let p = 0; p <= 100; p += 20) { onProgress?.(p); await delay(150); }
-    return files.map((f, i) => ({ image_id: i + 1, url: '/mock/claim_photo.jpg', duplicate_of: null }));
+    return files.map((f, i) => ({ image_id: i + 1, url: '/mock/claim_photo.svg', duplicate_of: null }));
   }
   const form = new FormData();
   files.forEach((file) => form.append('files', file));
