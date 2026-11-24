@@ -1,6 +1,6 @@
 # Claim-Checker: AI-Image Detector Setup (M1, Day 1)
 
-Owner: M1 (Detection engineer) · Epics: E3 JPEG artifact analysis, E4 AI-generated detection
+Owner: M1 (Detection engineer) · Epics: E4 AI-generated detection, E7 React frontend (E3 moved to M3)
 Branch: `alex-data` · Status: **E4.1 done** (all candidate detectors run on CPU)
 
 This document records what was set up on Day 1, how to reproduce it, the first results,
@@ -154,65 +154,7 @@ Result on our VM: _fill in_
 
 ---
 
-## 5. First results (Day 1, CPU)
 
-These are smoke-test results, not an evaluation. Single images say little about accuracy.
-
-| Image | Source | UFD | Community Forensics | B-Free | SigLIP |
-|---|---|---|---|---|---|
-| real.jpg | Genuine photo | 0.0006 | _fill in_ | _fill in_ | 0.0002 |
-| ai.jpg | AI-generated | 0.0118 | _fill in_ | _fill in_ | 0.0006 |
-| ai2.png | AI-generated | 0.3102 | 0.0292 | _fill in_ | 0.0004 |
-
-Per-source test (3–5 images per generator, saved directly from the tool):
-
-| Generator | # images | UFD caught | Community Forensics caught | B-Free caught | SigLIP caught |
-|---|---|---|---|---|---|
-| ChatGPT | | | | | |
-| Gemini | | | | | |
-| Stable Diffusion | | | | | |
-| Genuine (false flags) | | | | | |
-
-Timing on the VM (CPU):
-
-| Model | Load time (once) | Time per image |
-|---|---|---|
-| UniversalFakeDetect | 12.7 s | 0.54 s |
-| Community Forensics | 2.8 s | 0.21 s |
-| B-Free | _fill in_ | _fill in_ |
-| SigLIP | 4.6 s | 0.28 s |
-
-### What this means
-- Detectors learn the fingerprints of the generators in their training data. Newer commercial
-  generators (current ChatGPT and Gemini image models) are often not covered, so their images
-  can be scored as real.
-- A 2026 zero-shot benchmark of open detectors (arXiv 2602.07814) ranked Community Forensics best
-  overall, including on GPT-4o, Nano Banana (Gemini) and Stable Diffusion test sets. It also found
-  that the newest commercial generators defeat most detectors, so misses are expected.
-- B-Free is included because it was trained on **inpainted** fakes and is designed to survive
-  compression, which matches our AI-inpainted and WhatsApp-forwarded categories.
-- This supports the system design: edit forensics (branch A) and human review cover what the AI
-  detectors miss. Limitations will be reported in the report.
-
----
-
-## 6. Decisions for the team
-
-1. **Detector candidates (E4.1/E4.2).** Replace the plan's NYUAD/SigLIP candidates with
-   Community Forensics and B-Free, keeping UFD as baseline. The best 2 are still chosen on Day 3
-   from the tuning split. Still within scope: pretrained only, no training.
-2. **Contract: two AI scores.** The AI module produces two detector probabilities, but the
-   contract has one `score`. Options:
-   - (a) Two module results, e.g. `ai_det1` and `ai_det2`, each with its own score (simplest for fusion), or
-   - (b) One `ai_detection` result with per-model scores in `artifacts.model_scores`.
-   Proposed: **(a)**.
-3. **Optional provenance flag (new idea).** Read C2PA "Content Credentials" metadata: ChatGPT and
-   newer Gemini images often carry it. If present, it is near-proof of AI generation; if absent it
-   proves nothing (screenshots and WhatsApp strip it). Proposed as an extra flag, not a fusion feature.
-4. **Dataset format.** AI images from generators often come as PNG. Convert to JPEG for the
-   dataset (plan requires JPEG), and save directly from the tool, not via screenshots.
-
----
 
 ## 7. Harmless warnings you will see
 
@@ -223,18 +165,78 @@ Timing on the VM (CPU):
 
 ---
 
-## 8. Next steps (M1)
 
-- **Day 2 (E1.4):** generate 30 AI images (10 each from ChatGPT, Gemini, Stable Diffusion) with
-  claim-like prompts, plus 15 AI-inpainted real photos on Colab. Save as JPEG, record the generator
-  and source photo in `manifest.csv`.
-- **Day 3 (E4.2, E3.1):** run all candidates on the tuning split, report results per generator,
-  choose the best 2. Start the JPEG quality estimate.
-- **Day 4 (E4.3, E4.4, E3.2, E3.3):** wrap the chosen detectors as one module returning the contract
-  JSON, measure CPU time, build the double-compression check.
 
-  M3:
-  DAY 2:
-  “Run the backend” section (PostgreSQL database claim_checker, copy .env.example to .env, pip install -r requirements.txt, uvicorn app.main:app --reload), and add the extra results fields to the contract
-DAy 5:
-Run the backend" section; contract additions: reviewer_note, decided_at, the new GET /claims fields, the float() rule, split names tuning and test
+
+## Final choice (E4.2) and held-out results (E8.2)
+
+Final, leak-free split from `data/manifest.csv` (117 tuning / 78 test, 60/40 in every category).
+Flag threshold 0.5. Counts are images flagged as AI.
+
+**Chosen pair:** `ai_detector_1` = **Community Forensics**, `ai_detector_2` = **B-Free**
+(set in `DETECTOR_1` / `DETECTOR_2` in `backend/app/modules/ai_detector.py`).
+
+### Tuning split (used to choose)
+
+| Detector | AI fakes caught | Genuine flagged | Forwarded genuine flagged | AUC |
+|---|---|---|---|---|
+| B-Free | 14 of 33 | 2 of 59 | 1 of 21 | 0.855 |
+| Community Forensics | 6 of 33 | 0 of 59 | 0 of 21 | 0.636 |
+| UniversalFakeDetect (rejected) | 1 of 33 | 2 of 59 | 1 of 21 | 0.570 |
+| SigLIP (rejected) | 9 of 33 | 25 of 59 | 10 of 21 | 0.342 |
+
+### Test split (held out)
+
+| Detector | AI fakes caught | Genuine flagged | Forwarded genuine flagged | AUC |
+|---|---|---|---|---|
+| B-Free | 7 of 22 | 0 of 40 | 0 of 14 | 0.790 |
+| Community Forensics | 5 of 22 | 0 of 40 | 0 of 14 | 0.553 |
+
+By source on the test split: Stable Diffusion 3 of 3 (both detectors), Gemini 1 of 3 and
+ChatGPT 1 of 6 (B-Free only), AI-inpainted 0 of 6, forwarded AI fakes 2 of 4.
+
+**Why this pair:** B-Free separates AI fakes from genuine photos best and was trained on inpainted
+fakes. Community Forensics is weaker on this dataset but raised no false alarm on any genuine
+photo, so it cannot push honest claims into review; the fusion model weights it by its usefulness.
+SigLIP was rejected for flagging a third of genuine photos (AUC below 0.5); UniversalFakeDetect for
+weak separation.
+
+**Lower threshold (0.2, tuning):** B-Free catches 18 of 33 (from 14) but flags 7 of 59 genuine
+photos (from 2). The final thresholds are set on the fusion score, not per detector.
+
+Full tables: `evaluation/results/detector_comparison_tuning.md` and `detector_comparison_test.md`.
+Per-image scores: `evaluation/results/ai_scores_all.csv`. Script: `evaluation/detector_comparison.py`.
+
+## Timing (E4.4, CPU)
+
+| Step | Time |
+|---|---|
+| Loading both AI models (once, at first use) | about 13 s |
+| Both AI detectors, per photo | about 3.2–4 s |
+| All modules together (forensics, JPEG, AI), per photo | about 8–9 s |
+
+Call `ai_detector.warm_up()` at backend startup to avoid the first-claim delay.
+
+## Reviewer reasons (E5.4)
+
+A detector adds a reason when its score is 0.5 or higher:
+
+- Community Forensics: "This photo may be fully AI-generated (x%)"
+- B-Free: "Parts of this photo may have been created or altered with AI (x%)"
+
+## Tests
+
+From the `backend` folder:
+
+```powershell
+python test_ai_detector.py <photo.jpg>             # AI module: contract checks and timing
+python test_contract.py <photo.jpg>                # every detection module against the contract
+```
+
+## Known limitations
+
+- Newest commercial generators are mostly missed (ChatGPT 1 of 10 across both splits).
+- AI-inpainted photos are hard: the painted area is about 10% of a small photo, so most of the
+  image is genuinely real. None was caught at 0.5 on the test split.
+- The dataset is small (22 AI fakes in the test split), so each image moves the rates a lot.
+- Public genuine photos are "assumed real"; their history can't be verified.
