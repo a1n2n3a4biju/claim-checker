@@ -1,4 +1,3 @@
-import ReviewPanel from '../components/ReviewPanel';
 import { useCallback, useEffect, useState } from 'react';
 import { Link as RouterLink, useParams } from 'react-router-dom';
 import {
@@ -7,6 +6,8 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { analyzeClaim, assetUrl, getResults } from '../api/claims';
 import EvidenceViewer from '../components/EvidenceViewer';
+import ReviewPanel from '../components/ReviewPanel';
+import SafeImage from '../components/SafeImage';
 import { risk } from '../theme';
 import { claimStatus, riskLevel } from '../utils/risk';
 import { moduleInfo } from '../utils/modules';
@@ -48,7 +49,7 @@ function RiskSummary({ data, onAnalyze, analyzing }) {
             <Typography variant="h6" component="p">{nextStep[data.overall_risk]}</Typography>
             <Typography color="text.secondary" sx={{ mb: 2 }}>{claimStatus(data)}</Typography>
             <Typography sx={{ fontWeight: 600, mb: 0.5 }}>Why this score</Typography>
-            {data.reasons.length ? (
+            {data.reasons?.length ? (
               <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
                 {data.reasons.map((reason) => <li key={reason}><Typography variant="body2">{reason}</Typography></li>)}
               </Box>
@@ -125,7 +126,8 @@ function PhotoPicker({ images, selected, riskiestId, onSelect }) {
               border: 2, borderColor: isSelected ? 'primary.main' : 'divider', bgcolor: 'background.paper', textAlign: 'left',
             }}
           >
-            <Box component="img" src={assetUrl(img.url)} alt="" sx={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 0.5 }} />
+            <SafeImage src={assetUrl(img.url)} alt="" fallbackText="No preview"
+                       sx={{ width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', borderRadius: 0.5 }} />
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.75 }}>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>Photo {img.image_id}</Typography>
               <Typography variant="body2" sx={{ fontWeight: 700, color: risk[level]?.main ?? notAnalyzed.main, fontVariantNumeric: 'tabular-nums' }}>
@@ -175,9 +177,14 @@ export default function Results() {
 
   if (error && !data) {
     return (
-      <Alert severity="error" action={<Button color="inherit" onClick={load}>Try again</Button>}>
-        The results couldn't be loaded: {error}
-      </Alert>
+      <>
+        <Button component={RouterLink} to="/claims" startIcon={<ArrowBackIcon />} sx={{ mb: 2, ml: -1 }}>
+          Review queue
+        </Button>
+        <Alert severity="error" action={<Button color="inherit" onClick={load}>Try again</Button>}>
+          The results couldn't be loaded: {error}
+        </Alert>
+      </>
     );
   }
 
@@ -213,6 +220,7 @@ export default function Results() {
       {error && <Alert severity="error" sx={{ mb: 3 }}>{error}</Alert>}
 
       <RiskSummary data={data} onAnalyze={runChecks} analyzing={analyzing} />
+
       <ReviewPanel
         claimId={data.claim_id}
         risk={data.overall_risk}
