@@ -1,28 +1,42 @@
 import { Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import { Box, Button, Typography } from '@mui/material';
-import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
-import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
-import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined';
 import ClaimsList from './pages/ClaimsList';
 import NewClaim from './pages/NewClaim';
 import Results from './pages/Results';
 import SignInDialog from './components/SignInDialog';
 import { USE_MOCK } from './api/claims';
 import { useAuth } from './auth/AuthContext';
+import { firmTeal, ink, serif } from './theme';
 
-function NavButton({ to, label, icon, active }) {
+const onDark = '#BFD9DE';        // light teal text on the ink header
+const width = { maxWidth: 1180, mx: 'auto', px: { xs: 2, md: 4 } };
+
+function Mark() {
+  // A case file with a check: the firm's mark
+  return (
+    <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+      <rect width="30" height="30" rx="6" fill={firmTeal} />
+      <path d="M10 7.5h7.5l4 4v11h-11.5z" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M17.5 7.5v4h4" fill="none" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M12.8 17l2.2 2.2 3.8-4.4" fill="none" stroke={onDark} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function NavLink({ to, label, active }) {
   return (
     <Button
       component={RouterLink}
       to={to}
-      startIcon={icon}
+      aria-current={active ? 'page' : undefined}
       sx={{
-        justifyContent: 'flex-start',
-        px: 1.5,
-        py: 1,
-        color: active ? 'primary.main' : 'text.secondary',
-        bgcolor: active ? 'rgba(14, 94, 111, 0.08)' : 'transparent',
-        '&:hover': { bgcolor: 'rgba(14, 94, 111, 0.06)' },
+        color: active ? '#fff' : onDark,
+        borderRadius: 0,
+        px: 0.5,
+        minHeight: { md: 64 },
+        borderBottom: 3,
+        borderColor: active ? onDark : 'transparent',
+        '&:hover': { color: '#fff', bgcolor: 'transparent' },
       }}
     >
       {label}
@@ -33,13 +47,23 @@ function NavButton({ to, label, icon, active }) {
 function ReviewerStatus() {
   const { session, openSignIn, signOut } = useAuth();
   if (!session) {
-    return <Button variant="outlined" size="small" onClick={openSignIn}>Reviewer sign-in</Button>;
+    return (
+      <Button
+        variant="outlined"
+        size="small"
+        onClick={openSignIn}
+        sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: '#fff' } }}
+      >
+        Reviewer sign-in
+      </Button>
+    );
   }
   return (
-    <Box sx={{ px: 1 }}>
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Signed in as</Typography>
-      <Typography variant="body2" sx={{ fontWeight: 600 }}>{session.name}</Typography>
-      <Button size="small" onClick={signOut} sx={{ ml: -1 }}>Sign out</Button>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+      <Typography variant="body2" sx={{ color: onDark }}>
+        Signed in as <Box component="span" sx={{ color: '#fff', fontWeight: 600 }}>{session.name}</Box>
+      </Typography>
+      <Button size="small" onClick={signOut} sx={{ color: onDark, '&:hover': { color: '#fff' } }}>Sign out</Button>
     </Box>
   );
 }
@@ -49,54 +73,58 @@ export default function App() {
   const inQueue = pathname === '/claims' || /^\/claims\/\d+/.test(pathname);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, minHeight: '100vh' }}>
-      <Box
-        component="nav"
-        aria-label="Main"
-        sx={{
-          width: { md: 232 },
-          flexShrink: 0,
-          bgcolor: 'background.paper',
-          borderRight: { md: 1 },
-          borderBottom: { xs: 1, md: 0 },
-          borderColor: 'divider',
-          display: 'flex',
-          flexDirection: { xs: 'row', md: 'column' },
-          alignItems: { xs: 'center', md: 'stretch' },
-          gap: 0.5,
-          p: 2,
-          position: { md: 'sticky' },
-          top: 0,
-          height: { md: '100vh' },
-          flexWrap: { xs: 'wrap', md: 'nowrap' },
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, mb: { md: 3 }, mr: { xs: 2, md: 0 } }}>
-          <VerifiedUserOutlinedIcon color="primary" />
-          <Typography sx={{ fontWeight: 700, fontSize: '1.0625rem' }}>Claim Checker</Typography>
+    <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Box component="header" sx={{ bgcolor: ink, color: '#fff', '& :focus-visible': { outlineColor: onDark } }}>
+        <Box
+          sx={{
+            ...width,
+            minHeight: 64,
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            columnGap: { xs: 2, md: 4 },
+            rowGap: 1,
+            py: { xs: 1.5, md: 0 },
+          }}
+        >
+          <Box component={RouterLink} to="/claims" sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: '#fff', textDecoration: 'none' }}>
+            <Mark />
+            <Typography component="span" sx={{ fontFamily: serif, fontWeight: 700, fontSize: '1.3rem', letterSpacing: '-0.01em' }}>
+              Claim Checker
+            </Typography>
+          </Box>
+
+          <Box component="nav" aria-label="Main" sx={{ display: 'flex', gap: 3, alignSelf: 'stretch', alignItems: 'center' }}>
+            <NavLink to="/claims" label="Review queue" active={inQueue} />
+            <NavLink to="/claims/new" label="New claim" active={pathname === '/claims/new'} />
+          </Box>
+
+          <Box sx={{ flexGrow: 1 }} />
+          <ReviewerStatus />
         </Box>
-
-        <NavButton to="/claims" label="Review queue" icon={<InboxOutlinedIcon />} active={inQueue} />
-        <NavButton to="/claims/new" label="New claim" icon={<AddPhotoAlternateOutlinedIcon />} active={pathname === '/claims/new'} />
-
-        <Box sx={{ flexGrow: 1 }} />
-        <ReviewerStatus />
-        {USE_MOCK && (
-          <Typography variant="caption" color="text.secondary" sx={{ px: 1, mt: 1, display: { xs: 'none', md: 'block' } }}>
-            Showing sample data
-          </Typography>
-        )}
       </Box>
 
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, px: { xs: 2, md: 5 }, py: { xs: 3, md: 5 } }}>
-        <Box sx={{ maxWidth: 1100 }}>
-          <Routes>
-            <Route path="/" element={<Navigate to="/claims" replace />} />
-            <Route path="/claims" element={<ClaimsList />} />
-            <Route path="/claims/new" element={<NewClaim />} />
-            <Route path="/claims/:id" element={<Results />} />
-          </Routes>
+      {USE_MOCK && (
+        <Box sx={{ bgcolor: '#FBF1DE', borderBottom: 1, borderColor: 'divider' }}>
+          <Typography variant="body2" sx={{ ...width, py: 0.75 }}>
+            Showing sample data. Set VITE_USE_MOCK=false in frontend/.env.local to use the backend.
+          </Typography>
         </Box>
+      )}
+
+      <Box component="main" sx={{ ...width, width: '100%', boxSizing: 'border-box', flexGrow: 1, py: { xs: 3, md: 5 } }}>
+        <Routes>
+          <Route path="/" element={<Navigate to="/claims" replace />} />
+          <Route path="/claims" element={<ClaimsList />} />
+          <Route path="/claims/new" element={<NewClaim />} />
+          <Route path="/claims/:id" element={<Results />} />
+        </Routes>
+      </Box>
+
+      <Box component="footer" sx={{ borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Typography variant="body2" color="text.secondary" sx={{ ...width, py: 2.5 }}>
+          Every flagged claim is reviewed by a person. The tool never rejects a claim on its own.
+        </Typography>
       </Box>
 
       <SignInDialog />
