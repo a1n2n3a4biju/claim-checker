@@ -122,8 +122,7 @@ export default function ReviewPanel({ claimId, risk, decision, note, reviewerNam
     } catch (e) {
       const detail = e?.response?.data?.detail ?? e.message;
       if (e?.response?.status === 401) {
-        signOut();                                   // the token is no longer valid
-        setAuthMessage(`${detail}. Sign in to approve or escalate.`);
+        signOut(`${detail}. Sign in to approve or escalate.`);   // the token is no longer valid
       } else {
         setError(`The decision wasn't saved: ${detail}. Try again.`);
       }

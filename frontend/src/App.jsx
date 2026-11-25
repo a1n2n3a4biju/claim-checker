@@ -1,9 +1,13 @@
 import { Routes, Route, Navigate, Link as RouterLink, useLocation } from 'react-router-dom';
 import { Box, Button, Typography } from '@mui/material';
-import ClaimsList from './pages/ClaimsList';
+import Landing from './pages/Landing';
 import NewClaim from './pages/NewClaim';
+import Submitted from './pages/Submitted';
+import Track from './pages/Track';
+import ClaimsList from './pages/ClaimsList';
 import Results from './pages/Results';
 import SignInDialog from './components/SignInDialog';
+import RequireReviewer from './components/RequireReviewer';
 import { USE_MOCK } from './api/claims';
 import { useAuth } from './auth/AuthContext';
 import { firmTeal, ink, serif } from './theme';
@@ -12,7 +16,7 @@ const onDark = '#BFD9DE';        // light teal text on the ink header
 const width = { maxWidth: 1180, mx: 'auto', px: { xs: 2, md: 4 } };
 
 function Mark() {
-  // A case file with a check: the firm's mark
+  // A case file with a check: the ClaimProof mark
   return (
     <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
       <rect width="30" height="30" rx="6" fill={firmTeal} />
@@ -51,7 +55,7 @@ function ReviewerStatus() {
       <Button
         variant="outlined"
         size="small"
-        onClick={openSignIn}
+        onClick={() => openSignIn('/claims')}
         sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.5)', '&:hover': { borderColor: '#fff' } }}
       >
         Reviewer sign-in
@@ -63,13 +67,14 @@ function ReviewerStatus() {
       <Typography variant="body2" sx={{ color: onDark }}>
         Signed in as <Box component="span" sx={{ color: '#fff', fontWeight: 600 }}>{session.name}</Box>
       </Typography>
-      <Button size="small" onClick={signOut} sx={{ color: onDark, '&:hover': { color: '#fff' } }}>Sign out</Button>
+      <Button size="small" onClick={() => signOut()} sx={{ color: onDark, '&:hover': { color: '#fff' } }}>Sign out</Button>
     </Box>
   );
 }
 
 export default function App() {
   const { pathname } = useLocation();
+  const { session } = useAuth();
   const inQueue = pathname === '/claims' || /^\/claims\/\d+/.test(pathname);
 
   return (
@@ -87,16 +92,17 @@ export default function App() {
             py: { xs: 1.5, md: 0 },
           }}
         >
-          <Box component={RouterLink} to="/claims" sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: '#fff', textDecoration: 'none' }}>
+          <Box component={RouterLink} to="/" sx={{ display: 'flex', alignItems: 'center', gap: 1.25, color: '#fff', textDecoration: 'none' }}>
             <Mark />
             <Typography component="span" sx={{ fontFamily: serif, fontWeight: 700, fontSize: '1.3rem', letterSpacing: '-0.01em' }}>
-              Claim Checker
+              ClaimProof
             </Typography>
           </Box>
 
-          <Box component="nav" aria-label="Main" sx={{ display: 'flex', gap: 3, alignSelf: 'stretch', alignItems: 'center' }}>
-            <NavLink to="/claims" label="Review queue" active={inQueue} />
-            <NavLink to="/claims/new" label="New claim" active={pathname === '/claims/new'} />
+          <Box component="nav" aria-label="Main" sx={{ display: 'flex', gap: 3, alignSelf: 'stretch', alignItems: 'center', flexWrap: 'wrap' }}>
+            {session && <NavLink to="/claims" label="Review queue" active={inQueue} />}
+            <NavLink to="/claims/new" label="Submit a claim" active={pathname === '/claims/new'} />
+            <NavLink to="/track" label="Check status" active={pathname === '/track'} />
           </Box>
 
           <Box sx={{ flexGrow: 1 }} />
@@ -114,16 +120,19 @@ export default function App() {
 
       <Box component="main" sx={{ ...width, width: '100%', boxSizing: 'border-box', flexGrow: 1, py: { xs: 3, md: 5 } }}>
         <Routes>
-          <Route path="/" element={<Navigate to="/claims" replace />} />
-          <Route path="/claims" element={<ClaimsList />} />
+          <Route path="/" element={<Landing />} />
           <Route path="/claims/new" element={<NewClaim />} />
-          <Route path="/claims/:id" element={<Results />} />
+          <Route path="/submitted/:id" element={<Submitted />} />
+          <Route path="/track" element={<Track />} />
+          <Route path="/claims" element={<RequireReviewer><ClaimsList /></RequireReviewer>} />
+          <Route path="/claims/:id" element={<RequireReviewer><Results /></RequireReviewer>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Box>
 
       <Box component="footer" sx={{ borderTop: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
         <Typography variant="body2" color="text.secondary" sx={{ ...width, py: 2.5 }}>
-          Every flagged claim is reviewed by a person. The tool never rejects a claim on its own.
+          ClaimProof. Every flagged claim is reviewed by a person; the tool never rejects a claim on its own.
         </Typography>
       </Box>
 

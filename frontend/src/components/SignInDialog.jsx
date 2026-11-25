@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography,
 } from '@mui/material';
@@ -11,7 +12,8 @@ const message = (e) => {
 };
 
 export default function SignInDialog() {
-  const { dialogOpen, closeSignIn, signIn } = useAuth();
+  const { dialogOpen, closeSignIn, signIn, redirectTo } = useAuth();
+  const navigate = useNavigate();
   const [names, setNames] = useState([]);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -40,7 +42,9 @@ export default function SignInDialog() {
     setError('');
     try {
       await signIn(username, password);
+      const target = redirectTo;
       close();
+      if (target) navigate(target);
     } catch (err) {
       setError(message(err));
     } finally {
@@ -51,31 +55,17 @@ export default function SignInDialog() {
   return (
     <Dialog open={dialogOpen} onClose={busy ? undefined : close} fullWidth maxWidth="xs">
       <form onSubmit={submit} noValidate>
-        <DialogTitle>Reviewer sign-in</DialogTitle>
+        <DialogTitle sx={{ fontFamily: '"Source Serif 4", Georgia, serif', fontWeight: 600 }}>Reviewer sign-in</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Only reviewers can approve or escalate claims. Anyone can submit a claim without signing in.
+            For adjusters and the fraud team. Claimants don't need to sign in.
           </Typography>
-          <TextField
-            select
-            label="Reviewer"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            fullWidth
-            disabled={busy}
-            sx={{ mb: 2 }}
-          >
+          <TextField select label="Reviewer" value={username} onChange={(e) => setUsername(e.target.value)}
+                     fullWidth disabled={busy} sx={{ mb: 2 }}>
             {names.map((n) => <MenuItem key={n} value={n}>{n}</MenuItem>)}
           </TextField>
-          <TextField
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            fullWidth
-            disabled={busy}
-            autoComplete="current-password"
-          />
+          <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
+                     fullWidth disabled={busy} autoComplete="current-password" />
           {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>

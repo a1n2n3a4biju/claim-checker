@@ -1,49 +1,52 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { login as apiLogin } from '../api/claims';
+import { SIGNED_OUT_EVENT, clearSession, readSession, saveSession } from './storage';
 
-// Reviewer sign-in state, shared by the navigation rail, the sign-in dialog and the review panel.
-// The token is kept in sessionStorage: it survives a page reload but not closing the browser.
+// Reviewer sign-in state, shared by the header, the sign-in dialog and the reviewer-only pages.
 
-const STORAGE_KEY = 'claimChecker.reviewer';
 const AuthContext = createContext(null);
 
-function loadSession() {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
-    if (saved?.token && saved.expiresAt > Date.now()) return saved;
-  } catch {
-    // ignore unreadable storage
-  }
-  sessionStorage.removeItem(STORAGE_KEY);
-  return null;
-}
-
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(loadSession);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [session, setSession] = useState(readSession);
+  const [dialog, setDialog] = useState({ open: false, redirect: null });
+  const [notice, setNotice] = useState('');        // why the reviewer was signed out, shown on the next page
+
+  // The API layer announces a rejected token (401) on any reviewer request
+  useEffect(() => {
+    const onSignedOut = (e) => {
+      setSession(null);
+      setNotice(e.detail ? `${e.detail}. Please sign in again.` : 'Your sign-in has ended. Please sign in again.');
+    };
+    window.addEventListener(SIGNED_OUT_EVENT, onSignedOut);
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, onSignedOut);
+  }, []);
 
   const signIn = useCallback(async (username, password) => {
     const res = await apiLogin(username, password);
     const next = { token: res.token, name: res.name, expiresAt: Date.now() + res.expires_in * 1000 };
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    saveSession(next);
     setSession(next);
+    setNotice('');
     return next;
   }, []);
 
-  const signOut = useCallback(() => {
-    sessionStorage.removeItem(STORAGE_KEY);
+  const signOut = useCallback((reason) => {
+    clearSession();
     setSession(null);
+    setNotice(typeof reason === 'string' ? reason : '');
   }, []);
 
   const value = useMemo(() => ({
-    // a session past its expiry counts as signed out; the backend would reject it anyway
     session: session && session.expiresAt > Date.now() ? session : null,
+    notice,
     signIn,
     signOut,
-    dialogOpen,
-    openSignIn: () => setDialogOpen(true),
-    closeSignIn: () => setDialogOpen(false),
-  }), [session, signIn, signOut, dialogOpen]);
+    dialogOpen: dialog.open,
+    redirectTo: dialog.redirect,
+    // openSignIn('/claims') opens the dialog and goes there after signing in; used as an onClick it just opens
+    openSignIn: (redirect) => setDialog({ open: true, redirect: typeof redirect === 'string' ? redirect : null }),
+    closeSignIn: () => setDialog({ open: false, redirect: null }),
+  }), [session, notice, signIn, signOut, dialog]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

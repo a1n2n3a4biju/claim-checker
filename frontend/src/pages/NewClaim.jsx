@@ -17,7 +17,7 @@ const formatSize = (bytes) =>
 const stageText = {
   creating: 'Creating the claim…',
   uploading: 'Uploading photos…',
-  analyzing: 'Running the checks on each photo… The first analysis after the server starts can take up to a minute.',
+  analyzing: 'Checking your photos… This can take up to a minute.',
 };
 
 function Section({ title, children }) {
@@ -105,25 +105,27 @@ export default function NewClaim() {
       await uploadImages(claim.id, photos.map((p) => p.file), setProgress);
       setStage('analyzing');
       await analyzeClaim(claim.id);
-      navigate(`/claims/${claim.id}`);
+      navigate(`/submitted/${claim.id}`, {
+        state: { trackingCode: claim.tracking_code, photos: photos.length, name: form.claimant_name.trim() },
+      });
     } catch (err) {
       const detail = err?.response?.data?.detail ?? err.message;
-      setError(`The claim wasn't submitted: ${detail}. Check that the backend is running, then submit again.`);
+      setError(`Your claim wasn't submitted: ${detail}. Please try again in a moment.`);
       setStage(null);
     }
   };
 
   return (
     <Box component="form" noValidate onSubmit={submit} sx={{ maxWidth: 760 }}>
-      <Typography variant="h4" component="h1">New claim</Typography>
+      <Typography variant="h4" component="h1">Submit a claim</Typography>
       <Typography color="text.secondary" sx={{ mb: 3 }}>
-        Add the claim details and the photos the claimant sent. Each photo is checked for edits and AI generation.
+        Tell us what happened and add photos of the damage. You'll get a claim number and a tracking code to check its status.
       </Typography>
 
       <Section title="Claim details">
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 200px' }, gap: 2 }}>
           <TextField
-            label="Claimant name"
+            label="Your name"
             value={form.claimant_name}
             onChange={update('claimant_name')}
             error={Boolean(show('claimant_name'))}
@@ -149,7 +151,7 @@ export default function NewClaim() {
             disabled={busy}
             multiline
             minRows={3}
-            placeholder="For example: rear bumper hit while parked outside the office"
+            placeholder="For example: my rear bumper was hit while parked outside the office"
             sx={{ gridColumn: '1 / -1' }}
           />
         </Box>
@@ -246,7 +248,7 @@ export default function NewClaim() {
       )}
 
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1.5 }}>
-        <Button component={RouterLink} to="/claims" disabled={busy}>Cancel</Button>
+        <Button component={RouterLink} to="/" disabled={busy}>Cancel</Button>
         <Button type="submit" variant="contained" disabled={busy}>Submit claim</Button>
       </Box>
     </Box>
