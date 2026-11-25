@@ -1,0 +1,4 @@
+module,threshold,AUC (own categories vs genuine),caught,genuine flagged,forwarded genuine flagged
+ela,0.5,0.55,12 of 22,21 of 40,8 of 14
+noise,0.4,0.41,11 of 22,30 of 40,12 of 14
+copy_move,0.4,0.66,5 of 7,20 of 40,6 of 14

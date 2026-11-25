@@ -1,0 +1,9 @@
+category,label,low,medium,high,flagged (medium+high),meaning
+ai,fake,3,1,8,9 of 12,caught
+ai_inpaint,fake,2,2,2,4 of 6,caught
+edit_manual,fake,1,3,0,3 of 4,caught
+edit_script,fake,7,3,2,5 of 12,caught
+forwarded_fake,fake,0,1,3,4 of 4,caught
+forwarded_genuine,real,10,3,1,4 of 14,false alarms
+genuine,real,10,9,1,10 of 20,false alarms
+hard_genuine,real,4,1,1,2 of 6,false alarms

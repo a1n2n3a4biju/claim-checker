@@ -1,0 +1,3 @@
+decision,TPR (fakes flagged),FPR (genuine flagged),precision at 5%,likely range,per 1000 claims: fraud flagged,per 1000 claims: honest flagged,per 1000 claims: fraud missed
+any review (medium+high),25 of 38 = 66%,16 of 40 = 40%,0.08,0.05 to 0.14,33,380,17
+fraud team (high),15 of 38 = 39%,3 of 40 = 8%,0.217,0.06 to 0.53,20,71,30
