@@ -23,6 +23,8 @@ import json
 import time
 from dotenv import load_dotenv
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import hmac
+import secrets
 
 # ---------------------------------------------------------------- setup
 
@@ -52,7 +54,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Claim Checker", lifespan=lifespan)
+app = FastAPI(title="ClaimProof", lifespan=lifespan)
 app.add_middleware(CORSMiddleware,
                    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
@@ -115,6 +117,23 @@ def current_reviewer(creds: HTTPAuthorizationCredentials | None = Depends(bearer
 class LoginIn(BaseModel):
     username: str
     password: str
+
+CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no 0/O or 1/I, to avoid confusion
+
+
+def new_tracking_code() -> str:
+    """A random code like K7Q2-MX9P."""
+    raw = "".join(secrets.choice(CODE_CHARS) for _ in range(8))
+    return f"{raw[:4]}-{raw[4:]}"
+
+
+def clean_code(code: str) -> str:
+    """So 'k7q2 mx9p' matches 'K7Q2-MX9P'."""
+    return code.strip().upper().replace("-", "").replace(" ", "")
+
+
+def utc(dt):
+    return dt.replace(tzinfo=timezone.utc).isoformat() if dt else None
 
 
 @app.get("/auth/reviewers")
@@ -192,11 +211,13 @@ def home():
 
 @app.post("/claims")
 def create_claim(data: ClaimIn, db: Session = Depends(get_db)):
-    claim = models.Claim(**data.model_dump())
+    code = new_tracking_code()
+    claim = models.Claim(**data.model_dump(), tracking_code=code)
     db.add(claim)
     db.commit()
     db.refresh(claim)
-    return {"id": claim.id, **data.model_dump()}
+    # the code is returned only here, once, for the Claim received page
+    return {"id": claim.id, **data.model_dump(), "tracking_code": code}
 
 
 @app.get("/claims")
@@ -358,3 +379,43 @@ def review_queue(db: Session = Depends(get_db),
             queue.append({"claim_id": c.id, "claimant_name": c.claimant_name,
                           "overall_risk": v.overall_risk, "risk_score": v.risk_score})
     return sorted(queue, key=lambda q: q["risk_score"] or 0, reverse=True)
+
+CLAIMANT_STATUS = {
+    "received":   ("Received", "We're checking your photos."),
+    "processing": ("Being processed", "Your claim is moving ahead."),
+    "review":     ("Under review", "A reviewer is looking at your claim."),
+    "approved":   ("Approved", "Your claim has been approved for processing."),
+    "escalated":  ("Needs further review", "Your claim needs a closer look. We'll contact you."),
+}
+
+
+@app.get("/claims/{claim_id}/status")
+def claim_status(claim_id: int, code: str, db: Session = Depends(get_db)):
+    """Public status for claimants: no scores, risk level, evidence or reviewer notes."""
+    claim = db.get(models.Claim, claim_id)
+    # the same answer whether the claim doesn't exist or the code is wrong
+    if (not claim or not claim.tracking_code
+            or not hmac.compare_digest(clean_code(claim.tracking_code), clean_code(code))):
+        raise HTTPException(404, "No claim found with that number and code")
+
+    v = latest_verdict(db, claim_id)
+    if not v:
+        key = "received"                       # checks not finished
+    elif v.reviewer_decision in ("approved", "escalated"):
+        key = v.reviewer_decision              # a reviewer has decided
+    elif v.overall_risk == "low":
+        key = "processing"                     # low risk, no decision
+    else:
+        key = "review"                         # medium or high, no decision
+    status, message = CLAIMANT_STATUS[key]
+
+    steps = [
+        {"step": "Received", "done": True, "time": utc(claim.created_at)},
+        {"step": "Photos checked", "done": v is not None, "time": None},
+        {"step": "Under review", "done": key in ("review", "approved", "escalated"), "time": None},
+        {"step": "Decision", "done": key in ("approved", "escalated"),
+         "time": utc(v.decided_at) if v and v.reviewer_decision else None},
+    ]
+    return {"claim_id": claim.id, "claimant_name": claim.claimant_name,
+            "incident_date": claim.incident_date,
+            "status": status, "message": message, "steps": steps}

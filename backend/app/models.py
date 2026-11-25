@@ -14,6 +14,7 @@ class Claim(Base):
     incident_date = Column(String, nullable=False)
     description = Column(Text, default="")
     created_at = Column(DateTime, default=now)
+    tracking_code = Column(String, nullable=True)
 
 
 class ImageRecord(Base):
