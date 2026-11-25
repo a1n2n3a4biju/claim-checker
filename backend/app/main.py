@@ -201,7 +201,8 @@ def create_claim(data: ClaimIn, db: Session = Depends(get_db)):
 
 @app.get("/claims")
 def list_claims(risk: Literal["low", "medium", "high"] | None = None,
-                db: Session = Depends(get_db)):
+                db: Session = Depends(get_db),
+                reviewer: str = Depends(current_reviewer)):
     """List claims. Optional filter: /claims?risk=high (low, medium or high)."""
     out = []
     for c in db.query(models.Claim).order_by(models.Claim.id.desc()).all():
@@ -287,7 +288,8 @@ def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/claims/{claim_id}/results")
-def get_results(claim_id: int, db: Session = Depends(get_db)):
+def get_results(claim_id: int, db: Session = Depends(get_db),
+        reviewer: str = Depends(current_reviewer)):
     claim = db.get(models.Claim, claim_id)
     if not claim:
         raise HTTPException(404, "Claim not found")
@@ -346,7 +348,8 @@ def record_decision(claim_id: int, data: DecisionIn, db: Session = Depends(get_d
 
 
 @app.get("/review-queue")
-def review_queue(db: Session = Depends(get_db)):
+def review_queue(db: Session = Depends(get_db),
+ reviewer: str = Depends(current_reviewer)):
     """Medium and high claims with no reviewer decision yet, riskiest first."""
     queue = []
     for c in db.query(models.Claim).all():
