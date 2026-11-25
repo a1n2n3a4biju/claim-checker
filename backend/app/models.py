@@ -45,4 +45,5 @@ class Verdict(Base):
     reasons = Column(JSON, default=list)
     reviewer_decision = Column(String, nullable=True)
     reviewer_note = Column(Text, nullable=True)
+    reviewer_name = Column(String, nullable=True)
     decided_at = Column(DateTime, nullable=True)

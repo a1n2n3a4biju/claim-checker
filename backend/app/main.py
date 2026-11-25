@@ -16,6 +16,14 @@ from . import models
 from .database import Base, engine, get_db
 from .modules import ai_detector, forensics, jpeg_artifacts
 
+import base64
+import hashlib
+import hmac
+import json
+import time
+from dotenv import load_dotenv
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 # ---------------------------------------------------------------- setup
 
 os.makedirs("uploads", exist_ok=True)
@@ -50,6 +58,79 @@ app.add_middleware(CORSMiddleware,
                    allow_methods=["*"], allow_headers=["*"])
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 app.mount("/results", StaticFiles(directory="results"), name="results")
+# ---------------------------------------------------------------- reviewer sign-in
+
+
+
+
+
+
+
+
+
+
+
+# ---------------------------------------------------------------- reviewer sign-in
+
+load_dotenv()
+REVIEWER_NAMES = [n.strip() for n in os.getenv("REVIEWER_NAMES", "").split(";") if n.strip()]
+REVIEWER_PASSWORD = os.getenv("REVIEWER_PASSWORD", "")
+TOKEN_SECRET = os.getenv("TOKEN_SECRET", "")
+TOKEN_HOURS = 4
+bearer = HTTPBearer(auto_error=False)
+
+
+def find_reviewer(name: str) -> str | None:
+    """Matches a typed name to the allowed list, ignoring capitals and extra spaces."""
+    typed = " ".join(name.split()).lower()
+    return next((n for n in REVIEWER_NAMES if n.lower() == typed), None)
+
+
+def make_token(name: str) -> str:
+    body = base64.urlsafe_b64encode(
+        json.dumps({"user": name, "exp": time.time() + TOKEN_HOURS * 3600}).encode()).decode()
+    sig = hmac.new(TOKEN_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
+    return f"{body}.{sig}"
+
+
+def current_reviewer(creds: HTTPAuthorizationCredentials | None = Depends(bearer)) -> str:
+    """Returns the signed-in reviewer's name, or rejects the request."""
+    if not creds:
+        raise HTTPException(401, "Sign in as a reviewer first")
+    try:
+        body, sig = creds.credentials.rsplit(".", 1)
+        good = hmac.new(TOKEN_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
+        data = json.loads(base64.urlsafe_b64decode(body))
+    except Exception:
+        raise HTTPException(401, "Invalid sign-in token")
+    if not hmac.compare_digest(sig, good):
+        raise HTTPException(401, "Invalid sign-in token")
+    if data["exp"] < time.time():
+        raise HTTPException(401, "Sign-in expired; please sign in again")
+    if data["user"] not in REVIEWER_NAMES:
+        raise HTTPException(401, "This reviewer is no longer allowed")
+    return data["user"]
+
+
+class LoginIn(BaseModel):
+    username: str
+    password: str
+
+
+@app.get("/auth/reviewers")
+def list_reviewers():
+    """Names only (never the password), so the sign-in screen can show a dropdown."""
+    return REVIEWER_NAMES
+
+
+@app.post("/auth/login")
+def login(data: LoginIn):
+    if not (REVIEWER_NAMES and REVIEWER_PASSWORD and TOKEN_SECRET):
+        raise HTTPException(500, "Reviewer sign-in is not configured on the server (.env)")
+    name = find_reviewer(data.username)
+    if not name or not hmac.compare_digest(data.password, REVIEWER_PASSWORD):
+        raise HTTPException(401, "Wrong name or password")
+    return {"token": make_token(name), "name": name, "expires_in": TOKEN_HOURS * 3600}
 
 
 # ---------------------------------------------------------------- helpers
@@ -241,18 +322,22 @@ def get_results(claim_id: int, db: Session = Depends(get_db)):
         "reasons": verdict.reasons if verdict else [],
         "reviewer_decision": verdict.reviewer_decision if verdict else None,
         "reviewer_note": verdict.reviewer_note if verdict else None,
-        "decided_at": verdict.decided_at.isoformat() if verdict and verdict.decided_at else None,
+        "reviewer_name": verdict.reviewer_name if verdict else None,
+        "decided_at": verdict.decided_at.replace(tzinfo=timezone.utc).isoformat()
+                      if verdict and verdict.decided_at else None,
         "images": images,
     }
 
 
 @app.patch("/claims/{claim_id}/decision")
-def record_decision(claim_id: int, data: DecisionIn, db: Session = Depends(get_db)):
+def record_decision(claim_id: int, data: DecisionIn, db: Session = Depends(get_db),
+                    reviewer: str = Depends(current_reviewer)):
     if data.decision not in ("approved", "escalated"):
         raise HTTPException(400, "decision must be 'approved' or 'escalated'")
     verdict = latest_verdict(db, claim_id)
     if not verdict:
         raise HTTPException(400, "Analyze the claim before recording a decision")
+    verdict.reviewer_name = reviewer
     verdict.reviewer_decision = data.decision
     verdict.reviewer_note = data.note
     verdict.decided_at = datetime.now(timezone.utc)
