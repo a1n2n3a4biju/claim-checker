@@ -1,9 +1,9 @@
 role,category,images,flagged,mean score
-should catch,ai_inpaint,9,4 of 9,0.37
-should catch,edit_manual,6,3 of 6,0.46
-should catch,edit_script,18,13 of 18,0.57
-genuine (false alarms),forwarded_genuine,21,13 of 21,0.56
-genuine (false alarms),genuine,30,17 of 30,0.48
-genuine (false alarms),hard_genuine,9,2 of 9,0.39
-not its job,ai,18,13 of 18,0.48
-not its job,forwarded_fake,6,3 of 6,0.37
+should catch,ai_inpaint,9,8 of 9,0.58
+should catch,edit_manual,6,4 of 6,0.44
+should catch,edit_script,18,14 of 18,0.47
+genuine (false alarms),forwarded_genuine,21,18 of 21,0.5
+genuine (false alarms),genuine,30,27 of 30,0.54
+genuine (false alarms),hard_genuine,9,7 of 9,0.46
+not its job,ai,18,15 of 18,0.6
+not its job,forwarded_fake,6,3 of 6,0.41

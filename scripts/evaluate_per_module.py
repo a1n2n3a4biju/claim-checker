@@ -88,6 +88,7 @@ def module_table(data, module):
 
 def main():
     df = pd.read_csv(sys.argv[1])
+    df = df.rename(columns={"ai_detector_1": "community_forensics", "ai_detector_2": "bfree"})
     split = sys.argv[2] if len(sys.argv) > 2 else "test"
     if "error" in df.columns:
         df = df[df["error"].isna()]

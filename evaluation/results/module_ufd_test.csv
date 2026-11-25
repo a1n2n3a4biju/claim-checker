@@ -1,0 +1,9 @@
+role,category,images,flagged,mean score
+should catch,ai,12,1 of 12,0.1
+should catch,ai_inpaint,6,0 of 6,0.03
+should catch,forwarded_fake,4,1 of 4,0.18
+genuine (false alarms),forwarded_genuine,14,0 of 14,0.04
+genuine (false alarms),genuine,20,0 of 20,0.05
+genuine (false alarms),hard_genuine,6,1 of 6,0.1
+not its job,edit_manual,4,0 of 4,0.05
+not its job,edit_script,12,0 of 12,0.03

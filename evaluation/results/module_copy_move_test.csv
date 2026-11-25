@@ -1,10 +1,10 @@
 role,category,images,flagged,mean score
-should catch,edit_script (CM_* only),7,5 of 7,0.63
-genuine (false alarms),forwarded_genuine,14,6 of 14,0.37
-genuine (false alarms),genuine,20,10 of 20,0.49
-genuine (false alarms),hard_genuine,6,4 of 6,0.57
-not its job,ai,12,6 of 12,0.49
-not its job,ai_inpaint,6,4 of 6,0.43
-not its job,edit_manual,4,3 of 4,0.52
-not its job,edit_script (other files),5,2 of 5,0.29
-not its job,forwarded_fake,4,3 of 4,0.55
+should catch,edit_script (CM_* only),8,3 of 8,0.38
+genuine (false alarms),forwarded_genuine,14,2 of 14,0.11
+genuine (false alarms),genuine,20,1 of 20,0.07
+genuine (false alarms),hard_genuine,6,2 of 6,0.23
+not its job,ai,12,1 of 12,0.13
+not its job,ai_inpaint,6,0 of 6,0.09
+not its job,edit_manual,4,1 of 4,0.27
+not its job,edit_script (other files),4,1 of 4,0.11
+not its job,forwarded_fake,4,0 of 4,0.13
