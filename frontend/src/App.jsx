@@ -6,7 +6,9 @@ import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternate
 import ClaimsList from './pages/ClaimsList';
 import NewClaim from './pages/NewClaim';
 import Results from './pages/Results';
+import SignInDialog from './components/SignInDialog';
 import { USE_MOCK } from './api/claims';
+import { useAuth } from './auth/AuthContext';
 
 function NavButton({ to, label, icon, active }) {
   return (
@@ -25,6 +27,20 @@ function NavButton({ to, label, icon, active }) {
     >
       {label}
     </Button>
+  );
+}
+
+function ReviewerStatus() {
+  const { session, openSignIn, signOut } = useAuth();
+  if (!session) {
+    return <Button variant="outlined" size="small" onClick={openSignIn}>Reviewer sign-in</Button>;
+  }
+  return (
+    <Box sx={{ px: 1 }}>
+      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>Signed in as</Typography>
+      <Typography variant="body2" sx={{ fontWeight: 600 }}>{session.name}</Typography>
+      <Button size="small" onClick={signOut} sx={{ ml: -1 }}>Sign out</Button>
+    </Box>
   );
 }
 
@@ -52,6 +68,7 @@ export default function App() {
           position: { md: 'sticky' },
           top: 0,
           height: { md: '100vh' },
+          flexWrap: { xs: 'wrap', md: 'nowrap' },
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, mb: { md: 3 }, mr: { xs: 2, md: 0 } }}>
@@ -63,8 +80,9 @@ export default function App() {
         <NavButton to="/claims/new" label="New claim" icon={<AddPhotoAlternateOutlinedIcon />} active={pathname === '/claims/new'} />
 
         <Box sx={{ flexGrow: 1 }} />
+        <ReviewerStatus />
         {USE_MOCK && (
-          <Typography variant="caption" color="text.secondary" sx={{ px: 1, display: { xs: 'none', md: 'block' } }}>
+          <Typography variant="caption" color="text.secondary" sx={{ px: 1, mt: 1, display: { xs: 'none', md: 'block' } }}>
             Showing sample data
           </Typography>
         )}
@@ -80,6 +98,8 @@ export default function App() {
           </Routes>
         </Box>
       </Box>
+
+      <SignInDialog />
     </Box>
   );
 }

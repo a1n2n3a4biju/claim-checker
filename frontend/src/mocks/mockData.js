@@ -6,7 +6,7 @@ export const mockClaims = [
   { id: 1, claimant_name: 'Ravi Kumar',    incident_date: '2026-11-15', description: 'Rear bumper damaged while parked',            created_at: '2026-11-18T10:24:00', overall_risk: 'high',   risk_score: 0.81, reviewer_decision: null },
   { id: 2, claimant_name: 'Anita Menon',   incident_date: '2026-11-12', description: 'Scratches on driver-side door',               created_at: '2026-11-17T15:02:00', overall_risk: 'medium', risk_score: 0.47, reviewer_decision: null },
   { id: 3, claimant_name: 'Joseph Mathew', incident_date: '2026-11-10', description: 'Cracked front bumper after minor collision',  created_at: '2026-11-16T09:41:00', overall_risk: 'low',    risk_score: 0.14, reviewer_decision: null },
-  { id: 4, claimant_name: 'Priya Nair',    incident_date: '2026-11-08', description: 'Dented hood after hailstorm',                 created_at: '2026-11-15T11:30:00', overall_risk: 'high',   risk_score: 0.76, reviewer_decision: 'escalated' },
+  { id: 4, claimant_name: 'Priya Nair',    incident_date: '2026-11-08', description: 'Dented hood after hailstorm',                 created_at: '2026-11-15T11:30:00', overall_risk: 'high',   risk_score: 0.76, reviewer_decision: 'escalated', reviewer_note: 'Cloned dent area on the hood', reviewer_name: 'Hobhav S Fuzele', decided_at: '2026-11-16T09:12:00+00:00' } ,
   { id: 5, claimant_name: 'Arjun Das',     incident_date: '2026-11-19', description: 'Broken side mirror',                          created_at: '2026-11-20T08:05:00', overall_risk: null,     risk_score: null, reviewer_decision: null },
 ];
 
@@ -38,6 +38,9 @@ const result = (claimId, images, reasons = []) => {
     status: c.overall_risk ? 'analyzed' : 'not_analyzed',
     overall_risk: c.overall_risk,
     risk_score: c.risk_score,
+    reviewer_note: c.reviewer_note ?? null,
+    reviewer_name: c.reviewer_name ?? null,
+    decided_at: c.decided_at ?? null,
     reasons,
     reviewer_decision: c.reviewer_decision,
     images,

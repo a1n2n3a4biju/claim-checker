@@ -114,7 +114,7 @@ function PhotoPicker({ images, selected, riskiestId, onSelect }) {
   return (
     <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2 }}>
       {images.map((img) => {
-        const level = img.risk_level ?? riskLevel(img.risk_score);
+        const level = riskLevel(img.risk_score);
         const isSelected = img.image_id === selected;
         return (
           <ButtonBase
@@ -226,6 +226,8 @@ export default function Results() {
         risk={data.overall_risk}
         decision={data.reviewer_decision}
         note={data.reviewer_note}
+        reviewerName={data.reviewer_name}
+        decidedAt={data.decided_at}
         onSaved={load}
       />
 

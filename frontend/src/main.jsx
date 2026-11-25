@@ -8,13 +8,16 @@ import '@fontsource/public-sans/700.css';
 import './index.css';
 import theme from './theme';
 import App from './App';
+import { AuthProvider } from './auth/AuthContext';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <BrowserRouter>
-        <App />
+        <AuthProvider>
+          <App />
+        </AuthProvider>
       </BrowserRouter>
     </ThemeProvider>
   </StrictMode>
