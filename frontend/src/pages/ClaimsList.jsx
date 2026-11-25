@@ -4,11 +4,11 @@ import {
   Alert, Box, Button, ButtonBase, Paper, Skeleton, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import { listClaims } from '../api/claims';
-import { risk } from '../theme';
+import { risk, serif } from '../theme';
 import { claimStatus } from '../utils/risk';
 
 const notAnalyzed = { main: '#8A94A3', label: 'Not analyzed' };
-const columns = { xs: '72px 1fr', md: '96px 1fr 140px 200px' };
+const columns = { xs: '72px 1fr', md: '96px 1fr 150px 210px' };
 
 const FILTERS = [
   { value: 'all', label: 'All' },
@@ -17,6 +17,13 @@ const FILTERS = [
   { value: 'low', label: 'Low', color: risk.low.main },
   { value: 'none', label: 'Not analyzed', color: notAnalyzed.main },
 ];
+
+const countFor = (all, value) => {
+  if (!all) return null;
+  if (value === 'all') return all.length;
+  if (value === 'none') return all.filter((c) => !c.overall_risk).length;
+  return all.filter((c) => c.overall_risk === value).length;
+};
 
 const emptyText = {
   all: 'No claims yet. Create one to start a review.',
@@ -48,7 +55,7 @@ function ClaimRow({ claim, first }) {
         py: 2,
         borderTop: first ? 0 : 1,
         borderColor: 'divider',
-        '&:hover': { bgcolor: 'action.hover' },
+        '&:hover': { bgcolor: '#F9FAF9' },
         '&::before': { content: '""', position: 'absolute', left: 0, top: 0, bottom: 0, width: 6, bgcolor: r.main },
       }}
     >
@@ -59,8 +66,10 @@ function ClaimRow({ claim, first }) {
         <Typography variant="caption" sx={{ color: r.main, fontWeight: 600 }}>{r.label}</Typography>
       </Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 600 }}>{claim.claimant_name}</Typography>
-        <Typography variant="body2" color="text.secondary" noWrap>{claim.description || 'No description'}</Typography>
+        <Typography sx={{ fontFamily: serif, fontWeight: 600, fontSize: '1.0625rem' }}>{claim.claimant_name}</Typography>
+        <Typography variant="body2" color="text.secondary" noWrap>
+          Claim #{claim.id}: {claim.description || 'no description'}
+        </Typography>
       </Box>
       <Typography variant="body2" sx={{ display: { xs: 'none', md: 'block' }, fontVariantNumeric: 'tabular-nums' }}>
         {formatDate(claim.incident_date)}
@@ -76,8 +85,15 @@ export default function ClaimsList() {
   const [params, setParams] = useSearchParams();
   const filter = FILTERS.some((f) => f.value === params.get('risk')) ? params.get('risk') : 'all';
   const [claims, setClaims] = useState(null);
+  const [all, setAll] = useState(null);           // every claim, for the counts on the filter
   const [error, setError] = useState('');
   const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+    listClaims().then((data) => { if (!ignore) setAll(data); }).catch(() => {});
+    return () => { ignore = true; };
+  }, [reload]);
 
   useEffect(() => {
     let ignore = false;                        // drop answers that arrive after the filter changed
@@ -95,12 +111,11 @@ export default function ClaimsList() {
   }, [filter, reload]);
 
   const changeFilter = (_, value) => {
-    if (!value) return;                        // clicking the active button keeps it selected
+    if (!value) return;
     setParams(value === 'all' ? {} : { risk: value });
   };
 
-  const waiting = claims?.filter((c) => ['medium', 'high'].includes(c.overall_risk) && !c.reviewer_decision).length ?? 0;
-  const count = claims?.length ?? 0;
+  const waiting = all?.filter((c) => ['medium', 'high'].includes(c.overall_risk) && !c.reviewer_decision).length;
 
   return (
     <>
@@ -108,9 +123,11 @@ export default function ClaimsList() {
         <Box>
           <Typography variant="h4" component="h1">Review queue</Typography>
           <Typography color="text.secondary">
-            {claims
-              ? `${count} ${count === 1 ? 'claim' : 'claims'}, ${waiting} waiting for review, highest risk first`
-              : 'Loading claims…'}
+            {waiting == null
+              ? 'Loading claims…'
+              : waiting === 0
+                ? 'No claims are waiting for review.'
+                : `${waiting} ${waiting === 1 ? 'claim is' : 'claims are'} waiting for review, highest risk first.`}
           </Typography>
         </Box>
         <Button variant="contained" component={RouterLink} to="/claims/new">New claim</Button>
@@ -124,12 +141,18 @@ export default function ClaimsList() {
         aria-label="Filter by risk level"
         sx={{ mb: 2, flexWrap: 'wrap', bgcolor: 'background.paper' }}
       >
-        {FILTERS.map((f) => (
-          <ToggleButton key={f.value} value={f.value} sx={{ px: 1.75, textTransform: 'none', fontWeight: 600 }}>
-            {f.color && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: f.color, mr: 1 }} />}
-            {f.label}
-          </ToggleButton>
-        ))}
+        {FILTERS.map((f) => {
+          const count = countFor(all, f.value);
+          return (
+            <ToggleButton key={f.value} value={f.value} sx={{ px: 1.75 }}>
+              {f.color && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: f.color, mr: 1 }} />}
+              {f.label}
+              {count != null && (
+                <Box component="span" sx={{ ml: 0.75, fontWeight: 400, fontVariantNumeric: 'tabular-nums' }}>{count}</Box>
+              )}
+            </ToggleButton>
+          );
+        })}
       </ToggleButtonGroup>
 
       {error && (
