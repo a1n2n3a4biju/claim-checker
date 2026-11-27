@@ -1,52 +1,67 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { login as apiLogin } from '../api/claims';
-import { SIGNED_OUT_EVENT, clearSession, readSession, saveSession } from './storage';
+import { getMe, login as apiLogin, register as apiRegister } from '../api';
+import { SIGNED_OUT_EVENT } from '../api/client';
+import { clearToken, readToken, saveToken } from './storage';
 
-// Reviewer sign-in state, shared by the header, the sign-in dialog and the reviewer-only pages.
-
+// The signed-in user, shared by the header, the login page and the role-protected pages.
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [session, setSession] = useState(readSession);
-  const [dialog, setDialog] = useState({ open: false, redirect: null });
-  const [notice, setNotice] = useState('');        // why the reviewer was signed out, shown on the next page
+// Each role's home page (team doc, M1 step 2)
+export const HOME = {
+  claimant: '/my/claims',
+  assessor: '/assessor/claims',
+  insurer: '/insurer/claims',
+};
 
-  // The API layer announces a rejected token (401) on any reviewer request
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  // 'checking' while a saved token is restored with GET /me after a page refresh
+  const [status, setStatus] = useState(() => (readToken() ? 'checking' : 'ready'));
+  const [notice, setNotice] = useState('');     // why the user was signed out, shown on the login page
+
+  useEffect(() => {
+    if (status !== 'checking') return;
+    getMe()
+      .then((me) => setUser({ id: me.id, name: me.name, role: me.role }))
+      .catch(() => clearToken())
+      .finally(() => setStatus('ready'));
+  }, [status]);
+
+  // The API layer announces a 401 on any request
   useEffect(() => {
     const onSignedOut = (e) => {
-      setSession(null);
-      setNotice(e.detail ? `${e.detail}. Please sign in again.` : 'Your sign-in has ended. Please sign in again.');
+      setUser(null);
+      setNotice(e.detail || 'Your sign-in has ended. Please sign in again.');
     };
     window.addEventListener(SIGNED_OUT_EVENT, onSignedOut);
     return () => window.removeEventListener(SIGNED_OUT_EVENT, onSignedOut);
   }, []);
 
-  const signIn = useCallback(async (username, password) => {
-    const res = await apiLogin(username, password);
-    const next = { token: res.token, name: res.name, expiresAt: Date.now() + res.expires_in * 1000 };
-    saveSession(next);
-    setSession(next);
+  const signIn = useCallback(async (email, password) => {
+    const res = await apiLogin(email, password);
+    saveToken(res.token);
+    setUser(res.user);
     setNotice('');
-    return next;
+    return res.user;
   }, []);
 
-  const signOut = useCallback((reason) => {
-    clearSession();
-    setSession(null);
-    setNotice(typeof reason === 'string' ? reason : '');
+  // New customer account: signed in straight away
+  const signUp = useCallback(async (name, email, password) => {
+    const res = await apiRegister(name, email, password);
+    saveToken(res.token);
+    setUser(res.user);
+    setNotice('');
+    return res.user;
   }, []);
 
-  const value = useMemo(() => ({
-    session: session && session.expiresAt > Date.now() ? session : null,
-    notice,
-    signIn,
-    signOut,
-    dialogOpen: dialog.open,
-    redirectTo: dialog.redirect,
-    // openSignIn('/claims') opens the dialog and goes there after signing in; used as an onClick it just opens
-    openSignIn: (redirect) => setDialog({ open: true, redirect: typeof redirect === 'string' ? redirect : null }),
-    closeSignIn: () => setDialog({ open: false, redirect: null }),
-  }), [session, notice, signIn, signOut, dialog]);
+  const signOut = useCallback(() => {
+    clearToken();
+    setUser(null);
+    setNotice('');
+  }, []);
+
+  const value = useMemo(() => ({ user, ready: status === 'ready', notice, signIn, signUp, signOut }),
+    [user, status, notice, signIn, signUp, signOut]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

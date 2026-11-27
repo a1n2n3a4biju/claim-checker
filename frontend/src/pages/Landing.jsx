@@ -1,11 +1,11 @@
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import { Box, Button, Paper, Typography } from '@mui/material';
 import CoverArt from '../components/CoverArt';
-import { useAuth } from '../auth/AuthContext';
+import { HOME, useAuth } from '../auth/AuthContext';
 import { firmTeal, serif } from '../theme';
 
 const steps = [
-  { title: 'You submit', text: 'Tell us what happened and add photos of the damage. You get a claim number and a tracking code.' },
+  { title: 'You submit', text: 'Tell us what happened and add photos of the damage. You can follow your claim from your account.' },
   { title: 'Each photo is checked', text: 'Every photo is checked for signs of editing and of AI generation.' },
   { title: 'A reviewer decides', text: 'A person looks at what the checks found and makes the call. No claim is rejected automatically.' },
 ];
@@ -22,10 +22,7 @@ function Choice({ title, audience, text, action }) {
 }
 
 export default function Landing() {
-  const { session, openSignIn } = useAuth();
-  const navigate = useNavigate();
-
-  const review = () => (session ? navigate('/claims') : openSignIn('/claims'));
+  const { user } = useAuth();
 
   return (
     <>
@@ -48,25 +45,32 @@ export default function Landing() {
         </Box>
       </Box>
 
-      {/* the two ways in */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mb: 2 }}>
-        <Choice
-          title="Submit a claim"
-          audience="For policyholders"
-          text="Upload photos of the damage and tell us what happened. No account needed."
-          action={<Button variant="contained" size="large" component={RouterLink} to="/claims/new">Start a claim</Button>}
-        />
-        <Choice
-          title="Review claims"
-          audience="For adjusters and the fraud team"
-          text="See each claim's risk and the evidence behind it, and record your decision."
-          action={<Button variant="outlined" size="large" onClick={review}>{session ? 'Go to review queue' : 'Sign in to review'}</Button>}
-        />
+      {/* the two ways in: new account or sign in */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mb: { xs: 6, md: 8 } }}>
+        {user ? (
+          <Choice
+            title={`Welcome back, ${user.name}`}
+            audience="You're signed in"
+            text="Go to your home page to carry on where you left off."
+            action={<Button variant="contained" size="large" component={RouterLink} to={HOME[user.role]}>Go to my home page</Button>}
+          />
+        ) : (
+          <>
+            <Choice
+              title="Create a new account"
+              audience="For new customers"
+              text="Sign up with your email to submit claims and follow every step until settlement."
+              action={<Button variant="contained" size="large" component={RouterLink} to="/register">Create an account</Button>}
+            />
+            <Choice
+              title="Sign in"
+              audience="For existing customers, garage assessors and the insurance team"
+              text="Already have an account? Sign in to submit or track claims, write quotations, or review and decide."
+              action={<Button variant="outlined" size="large" component={RouterLink} to="/login">Sign in</Button>}
+            />
+          </>
+        )}
       </Box>
-      <Typography color="text.secondary" sx={{ mb: { xs: 6, md: 8 } }}>
-        Already submitted a claim?{' '}
-        <Box component={RouterLink} to="/track" sx={{ color: 'primary.main', fontWeight: 600 }}>Check its status</Box>
-      </Typography>
 
       {/* how it works: a real sequence, so the steps are numbered */}
       <Typography variant="h5" component="h2" sx={{ mb: 3 }}>How it works</Typography>
