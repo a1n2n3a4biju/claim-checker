@@ -1,0 +1,36 @@
+email,name,role,history
+assessor1@demo.in,Suresh Babu,assessor,
+assessor2@demo.in,Kavya Ramesh,assessor,
+assessor3@demo.in,Anand Rao,assessor,
+insurer1@demo.in,Priya Shankar,insurer,
+insurer2@demo.in,Mohan Das,insurer,
+claimant1@demo.in,Ravi Nair,claimant,approved (recent)
+claimant2@demo.in,Meena Nair,claimant,approved (recent)
+claimant3@demo.in,Arjun Iyer,claimant,approved (recent)
+claimant4@demo.in,Divya Sharma,claimant,approved (recent)
+claimant5@demo.in,Karthik Pillai,claimant,approved (recent)
+claimant6@demo.in,Lakshmi Pillai,claimant,approved (recent)
+claimant7@demo.in,Vikram Menon,claimant,approved (recent)
+claimant8@demo.in,Anjali Subramanian,claimant,approved (recent)
+claimant9@demo.in,Suresh Reddy,claimant,approved (recent)
+claimant10@demo.in,Priya Reddy,claimant,approved (recent)
+claimant11@demo.in,Rahul Reddy,claimant,"approved (recent), approved (recent)"
+claimant12@demo.in,Kavitha Pillai,claimant,"approved (recent), approved (recent)"
+claimant13@demo.in,Naveen Nair,claimant,"approved (recent), approved (recent)"
+claimant14@demo.in,Deepa Raj,claimant,"approved (recent), approved (recent)"
+claimant15@demo.in,Ganesh Krishnan,claimant,"approved (recent), approved (recent), approved (recent)"
+claimant16@demo.in,Swathi Iyer,claimant,"approved (recent), approved (recent), approved (recent)"
+claimant17@demo.in,Manoj Iyer,claimant,approved (old)
+claimant18@demo.in,Revathi Iyer,claimant,approved (old)
+claimant19@demo.in,Ajay Nair,claimant,approved (old)
+claimant20@demo.in,Nithya Krishnan,claimant,approved (old)
+claimant21@demo.in,Prakash Krishnan,claimant,rejected (recent)
+claimant22@demo.in,Sneha Reddy,claimant,rejected (recent)
+claimant23@demo.in,Harish Iyer,claimant,rejected (recent)
+claimant24@demo.in,Keerthana Nair,claimant,none
+claimant25@demo.in,Sanjay Kumar,claimant,none
+claimant26@demo.in,Pooja Krishnan,claimant,none
+claimant27@demo.in,Vijay Sharma,claimant,none
+claimant28@demo.in,Aishwarya Sharma,claimant,none
+claimant29@demo.in,Rohit Sharma,claimant,none
+claimant30@demo.in,Janani Subramanian,claimant,none
