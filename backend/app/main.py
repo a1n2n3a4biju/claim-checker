@@ -1,421 +1,433 @@
-﻿import hashlib
+﻿"""ClaimProof v2 API (owner: M3). Endpoints follow docs/CONTRACT.md section 3.
+
+Run from the backend folder:  uvicorn app.main:app --reload
+"""
+import json
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-import joblib
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import (BackgroundTasks, Depends, FastAPI, File, Form, HTTPException,
+                     Request, UploadFile)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from . import models
-from .database import Base, engine, get_db
-from .modules import ai_detector, forensics, jpeg_artifacts
+from . import auth, models, photo_checks, workflow
+from .auth import current_user, require_role
+from .database import BACKEND_DIR, Base, engine, get_db
+from .workflow import claimant_label, staff_label
 
-import base64
-import hashlib
-import hmac
-import json
-import time
-from dotenv import load_dotenv
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-import hmac
-import secrets
+PRICE_LIST_PATH = BACKEND_DIR.parent / "data" / "price_list.json"
 
-# ---------------------------------------------------------------- setup
-
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("results", exist_ok=True)
+(BACKEND_DIR / "uploads").mkdir(exist_ok=True)
+(BACKEND_DIR / "results").mkdir(exist_ok=True)
 Base.metadata.create_all(bind=engine)
-
-# Fusion model (made by scripts/train_fusion.py). If missing, scores are averaged.
-FUSION_PATH = Path(__file__).resolve().parents[1] / "fusion" / "fusion_model.joblib"
-_fusion = None
-
-
-def load_fusion():
-    """Load the trained fusion model if the file exists; otherwise keep averaging."""
-    global _fusion
-    if FUSION_PATH.exists():
-        _fusion = joblib.load(FUSION_PATH)
-        print(f"Fusion model loaded (thresholds {_fusion['low']} / {_fusion['high']})")
-    else:
-        print("No fusion model found; using average of module scores")
 
 
 @asynccontextmanager
 async def lifespan(app):
-    ai_detector.warm_up()      # load the AI models once, at startup
-    load_fusion()
+    if os.getenv("SKIP_PHOTO_MODELS") != "1":     # tests can skip loading the AI models
+        photo_checks.load()
     yield
 
 
-app = FastAPI(title="ClaimProof", lifespan=lifespan)
+app = FastAPI(title="ClaimProof v2", lifespan=lifespan)
 app.add_middleware(CORSMiddleware,
                    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
-app.mount("/results", StaticFiles(directory="results"), name="results")
-# ---------------------------------------------------------------- reviewer sign-in
+app.mount("/uploads", StaticFiles(directory=BACKEND_DIR / "uploads"), name="uploads")
+app.mount("/results", StaticFiles(directory=BACKEND_DIR / "results"), name="results")
 
 
+@app.exception_handler(RequestValidationError)
+async def readable_422(request: Request, exc: RequestValidationError):
+    """Contract 2.7: every error is {"detail": "a readable message"}; 422 names the field."""
+    parts = []
+    for e in exc.errors():
+        field = ".".join(str(x) for x in e.get("loc", []) if x not in ("body", "query", "path", "form"))
+        parts.append(f"{field}: {e.get('msg', 'invalid')}" if field else e.get("msg", "invalid"))
+    return JSONResponse(status_code=422, content={"detail": "; ".join(parts) or "Invalid input"})
 
 
+# ---------------------------------------------------------------- formatting (contract 2.5)
 
-
-
-
-
-
-
-# ---------------------------------------------------------------- reviewer sign-in
-
-load_dotenv()
-REVIEWER_NAMES = [n.strip() for n in os.getenv("REVIEWER_NAMES", "").split(";") if n.strip()]
-REVIEWER_PASSWORD = os.getenv("REVIEWER_PASSWORD", "")
-TOKEN_SECRET = os.getenv("TOKEN_SECRET", "")
-TOKEN_HOURS = 4
-bearer = HTTPBearer(auto_error=False)
-
-
-def find_reviewer(name: str) -> str | None:
-    """Matches a typed name to the allowed list, ignoring capitals and extra spaces."""
-    typed = " ".join(name.split()).lower()
-    return next((n for n in REVIEWER_NAMES if n.lower() == typed), None)
-
-
-def make_token(name: str) -> str:
-    body = base64.urlsafe_b64encode(
-        json.dumps({"user": name, "exp": time.time() + TOKEN_HOURS * 3600}).encode()).decode()
-    sig = hmac.new(TOKEN_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
-    return f"{body}.{sig}"
-
-
-def current_reviewer(creds: HTTPAuthorizationCredentials | None = Depends(bearer)) -> str:
-    """Returns the signed-in reviewer's name, or rejects the request."""
-    if not creds:
-        raise HTTPException(401, "Sign in as a reviewer first")
-    try:
-        body, sig = creds.credentials.rsplit(".", 1)
-        good = hmac.new(TOKEN_SECRET.encode(), body.encode(), hashlib.sha256).hexdigest()
-        data = json.loads(base64.urlsafe_b64decode(body))
-    except Exception:
-        raise HTTPException(401, "Invalid sign-in token")
-    if not hmac.compare_digest(sig, good):
-        raise HTTPException(401, "Invalid sign-in token")
-    if data["exp"] < time.time():
-        raise HTTPException(401, "Sign-in expired; please sign in again")
-    if data["user"] not in REVIEWER_NAMES:
-        raise HTTPException(401, "This reviewer is no longer allowed")
-    return data["user"]
-
-
-class LoginIn(BaseModel):
-    username: str
-    password: str
-
-CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"   # no 0/O or 1/I, to avoid confusion
-
-
-def new_tracking_code() -> str:
-    """A random code like K7Q2-MX9P."""
-    raw = "".join(secrets.choice(CODE_CHARS) for _ in range(8))
-    return f"{raw[:4]}-{raw[4:]}"
-
-
-def clean_code(code: str) -> str:
-    """So 'k7q2 mx9p' matches 'K7Q2-MX9P'."""
-    return code.strip().upper().replace("-", "").replace(" ", "")
-
-
-def utc(dt):
-    return dt.replace(tzinfo=timezone.utc).isoformat() if dt else None
-
-
-@app.get("/auth/reviewers")
-def list_reviewers():
-    """Names only (never the password), so the sign-in screen can show a dropdown."""
-    return REVIEWER_NAMES
-
-
-@app.post("/auth/login")
-def login(data: LoginIn):
-    if not (REVIEWER_NAMES and REVIEWER_PASSWORD and TOKEN_SECRET):
-        raise HTTPException(500, "Reviewer sign-in is not configured on the server (.env)")
-    name = find_reviewer(data.username)
-    if not name or not hmac.compare_digest(data.password, REVIEWER_PASSWORD):
-        raise HTTPException(401, "Wrong name or password")
-    return {"token": make_token(name), "name": name, "expires_in": TOKEN_HOURS * 3600}
-
-
-# ---------------------------------------------------------------- helpers
-
-def latest_verdict(db: Session, claim_id: int):
-    return (db.query(models.Verdict).filter_by(claim_id=claim_id)
-              .order_by(models.Verdict.id.desc()).first())
-
-
-def run_all_modules(image_path: str, out_dir: str = "results"):
-    """Runs every module. A failing module is reported, not fatal."""
-    results, problems = [], []
-    for name, module in (("forensics", forensics), ("JPEG", jpeg_artifacts), ("AI", ai_detector)):
-        try:
-            r = module.analyze(image_path, out_dir)
-            results.extend(r if isinstance(r, list) else [r])
-        except Exception as e:
-            problems.append(f"The {name} check failed on this photo")
-            print(f"[analyze] {name} failed on {image_path}: {type(e).__name__}: {e}")
-    return results, problems
-
-
-def fuse(scores: dict) -> float | None:
-    """Combine module scores into one risk score (0-1)."""
-    if not scores:
+def iso(dt: datetime | None) -> str | None:
+    """ISO date-time in UTC ending in +00:00."""
+    if dt is None:
         return None
-    if _fusion and all(f in scores for f in _fusion["features"]):
-        x = [[scores[f] for f in _fusion["features"]]]
-        return round(float(_fusion["model"].predict_proba(x)[0, 1]), 2)
-    return round(sum(scores.values()) / len(scores), 2)    # fallback: average
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def risk_level(score: float) -> str:
-    low, high = (_fusion["low"], _fusion["high"]) if _fusion else (0.4, 0.7)
-    if score < low:
-        return "low"
-    return "medium" if score < high else "high"
+def day(d: date | None) -> str | None:
+    return d.isoformat() if d else None
+
+
+def person(user: models.User | None) -> str:
+    return f"{user.name} ({user.role})" if user else "System"
+
+
+def quotation_of(db: Session, claim: models.Claim) -> models.Quotation | None:
+    return db.query(models.Quotation).filter_by(claim_id=claim.id).first()
+
+
+def history_rows(db: Session, claim: models.Claim) -> list[models.StatusHistory]:
+    return (db.query(models.StatusHistory).filter_by(claim_id=claim.id)
+              .order_by(models.StatusHistory.at, models.StatusHistory.id).all())
+
+
+def vehicle_out(v: models.Vehicle) -> dict:
+    return {"id": v.id, "registration": v.registration, "make": v.make, "model": v.model, "year": v.year}
+
+
+def policy_out(p: models.Policy) -> dict:
+    return {"id": p.id, "policy_number": p.policy_number, "start_date": day(p.start_date),
+            "end_date": day(p.end_date), "premium": p.premium, "deductible": p.deductible,
+            "sum_insured": p.sum_insured}
+
+
+# ---------------------------------------------------------------- claimant view: never any risk fields
+
+def claimant_claim(db: Session, claim: models.Claim) -> dict:
+    q = quotation_of(db, claim)
+    return {
+        "id": claim.id,
+        "status": claim.status,
+        "status_label": claimant_label(claim.status),
+        "vehicle": {"registration": claim.vehicle.registration, "make": claim.vehicle.make,
+                    "model": claim.vehicle.model},
+        "incident_date": day(claim.incident_date),
+        "incident_time": claim.incident_time,
+        "location": claim.location,
+        "severity": claim.severity,
+        "description": claim.description,
+        "created_at": iso(claim.created_at),
+        "quotation_total": q.total if q else None,
+        "decision": claim.decision,
+        "approved_amount": claim.approved_amount,
+        "info_request": claim.info_request if claim.status == "more_info_requested" else None,
+        "timeline": [{"status": h.to_status, "label": claimant_label(h.to_status), "at": iso(h.at)}
+                     for h in history_rows(db, claim)],
+    }
+
+
+def claimant_summary(claim: models.Claim) -> dict:
+    return {"id": claim.id, "status": claim.status, "status_label": claimant_label(claim.status),
+            "vehicle": {"registration": claim.vehicle.registration, "make": claim.vehicle.make,
+                        "model": claim.vehicle.model},
+            "incident_date": day(claim.incident_date), "created_at": iso(claim.created_at)}
+
+
+# ---------------------------------------------------------------- staff views
+
+def images_out(db: Session, claim: models.Claim) -> list[dict]:
+    out = []
+    for img in db.query(models.ImageRecord).filter_by(claim_id=claim.id).order_by(models.ImageRecord.id):
+        modules = []
+        for r in db.query(models.AnalysisResult).filter_by(image_id=img.id).order_by(models.AnalysisResult.id):
+            artifacts = {}
+            if r.artifact_paths and r.artifact_paths.get("heatmap_path"):
+                artifacts["heatmap_url"] = "/" + r.artifact_paths["heatmap_path"].lstrip("/")
+            modules.append({"module": r.module, "score": round(r.score, 3),
+                            "flags": r.flags or [], "artifacts": artifacts})
+        out.append({"image_id": img.id, "url": "/" + img.file_path, "uploaded_at": iso(img.uploaded_at),
+                    "duplicate_of": img.duplicate_of, "checked": bool(img.checked),
+                    "risk_score": img.risk_score, "risk_level": img.risk_level, "modules": modules})
+    return out
+
+
+def staff_summary(db: Session, claim: models.Claim) -> dict:
+    q = quotation_of(db, claim)
+    return {"id": claim.id, "status": claim.status, "status_label": staff_label(claim.status),
+            "claimant": claim.claimant.name,
+            "vehicle": {"registration": claim.vehicle.registration, "make": claim.vehicle.make,
+                        "model": claim.vehicle.model},
+            "incident_date": day(claim.incident_date), "severity": claim.severity,
+            "created_at": iso(claim.created_at),
+            "risk_level": claim.risk_level, "risk_score": claim.risk_score,
+            "fraud_flag": bool(claim.fraud_flag),
+            "assessor": claim.assessor.name if claim.assessor else None,
+            "quotation_total": q.total if q else None}
+
+
+def past_claims(db: Session, claim: models.Claim) -> list[dict]:
+    """Other claims by the same claimant or on the same vehicle."""
+    others = (db.query(models.Claim)
+                .filter(models.Claim.id != claim.id)
+                .filter((models.Claim.claimant_id == claim.claimant_id) |
+                        (models.Claim.vehicle_id == claim.vehicle_id))
+                .order_by(models.Claim.created_at.desc()).all())
+    return [{"id": c.id, "incident_date": day(c.incident_date), "status": c.status,
+             "status_label": staff_label(c.status), "registration": c.vehicle.registration,
+             "same_vehicle": c.vehicle_id == claim.vehicle_id, "decision": c.decision,
+             "approved_amount": c.approved_amount} for c in others]
+
+
+def recent_approved(db: Session, claim: models.Claim) -> list[dict]:
+    """Approved claims by this claimant in the 12 months before this incident."""
+    return [{"id": c.id, "incident_date": day(c.incident_date), "registration": c.vehicle.registration,
+             "approved_amount": c.approved_amount, "status": c.status, "status_label": staff_label(c.status)}
+            for c in workflow.recent_approved_claims(db, claim)]
+
+
+def staff_claim(db: Session, claim: models.Claim) -> dict:
+    q = quotation_of(db, claim)
+    data = claimant_claim(db, claim)
+    data.update({
+        "status_label": staff_label(claim.status),
+        "claimant": {"id": claim.claimant.id, "name": claim.claimant.name, "email": claim.claimant.email},
+        "vehicle": vehicle_out(claim.vehicle),
+        "info_request": claim.info_request,
+        "decision_note": claim.decision_note,
+        "risk_level": claim.risk_level,
+        "risk_score": claim.risk_score,
+        "fraud_flag": bool(claim.fraud_flag),
+        "reasons": claim.reasons or [],
+        "images": images_out(db, claim),
+        "assessor": person(claim.assessor) if claim.assessor else None,
+        "quotation": ({"total": q.total, "note": q.note, "assessor": person(q.assessor), "created_at": iso(q.created_at),
+                       "items": [{"kind": i.kind, "description": i.description, "quantity": i.quantity,
+                                  "unit_price": i.unit_price, "amount": i.quantity * i.unit_price}
+                                 for i in q.items]} if q else None),
+        "previous_claims": past_claims(db, claim),
+        "recent_approved_claims": recent_approved(db, claim),
+        "history": [{"from": h.from_status, "to": h.to_status, "by": person(h.user), "at": iso(h.at),
+                     "note": h.note or ""} for h in history_rows(db, claim)],
+    })
+    data["timeline"] = [{"status": h["to"], "label": staff_label(h["to"]), "at": h["at"]} for h in data["history"]]
+    return data
+
+
+def insurer_claim(db: Session, claim: models.Claim) -> dict:
+    data = staff_claim(db, claim)
+    breakdown = workflow.payout_breakdown(db, claim, quotation_of(db, claim))
+    data.update({
+        "policy": policy_out(claim.policy),
+        "payout_breakdown": breakdown,
+        "suggested_payout": breakdown["suggested_payout"] if breakdown else None,
+        "policy_valid_on_incident_date": workflow.policy_valid_on(claim.policy, claim.incident_date),
+    })
+    return data
 
 
 # ---------------------------------------------------------------- request bodies
 
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class RegisterIn(BaseModel):
+    name: str
+    email: str
+    password: str
+
+
 class ClaimIn(BaseModel):
-    claimant_name: str
-    incident_date: str
-    description: str = ""
+    vehicle_id: int
+    incident_date: date
+    incident_time: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["14:30"])
+    location: str = Field(min_length=1)
+    severity: Literal["minor", "moderate", "severe"]
+    description: str = Field(min_length=1)
 
 
-class DecisionIn(BaseModel):
-    decision: str          # "approved" or "escalated"
+class ItemIn(BaseModel):
+    kind: Literal["part", "labour"]
+    description: str = Field(min_length=1)
+    quantity: int = Field(ge=1)
+    unit_price: int = Field(ge=0)
+
+
+class QuotationIn(BaseModel):
+    items: list[ItemIn] = Field(min_length=1)
     note: str = ""
 
 
-# ---------------------------------------------------------------- endpoints
+class InfoRequestIn(BaseModel):
+    message: str = Field(min_length=1)
+
+
+class DecisionIn(BaseModel):
+    outcome: Literal["approved", "rejected", "further_review"]
+    amount: int | None = None
+    note: str = ""
+
+
+async def read_files(files: list[UploadFile] | None) -> list[tuple[str, bytes]]:
+    return [(f.filename or "photo", await f.read()) for f in (files or []) if f.filename]
+
+
+# ---------------------------------------------------------------- endpoints: anyone
 
 @app.get("/")
 def home():
-    return {"status": "ok", "docs": "/docs"}
+    return {"status": "ok", "app": "ClaimProof v2", "docs": "/docs"}
 
 
-@app.post("/claims")
-def create_claim(data: ClaimIn, db: Session = Depends(get_db)):
-    code = new_tracking_code()
-    claim = models.Claim(**data.model_dump(), tracking_code=code)
-    db.add(claim)
+@app.post("/auth/login")
+def login(data: LoginIn, db: Session = Depends(get_db)):
+    return auth.login(db, data.email, data.password)
+
+
+@app.post("/auth/register", status_code=201)
+def register(data: RegisterIn, db: Session = Depends(get_db)):
+    """New customer account (always a claimant); returns token and user, like /auth/login."""
+    return auth.register(db, data.name, data.email, data.password)
+
+
+@app.get("/me")
+def me(user: models.User = Depends(current_user)):
+    return auth.user_out(user)
+
+
+# ---------------------------------------------------------------- endpoints: claimant
+
+claimant_only = require_role("claimant")
+assessor_only = require_role("assessor")
+insurer_only = require_role("insurer")
+
+
+@app.get("/me/policies")
+def my_policies(user: models.User = Depends(claimant_only), db: Session = Depends(get_db)):
+    policies = db.query(models.Policy).filter_by(user_id=user.id).order_by(models.Policy.id).all()
+    return [{**policy_out(p), "vehicles": [vehicle_out(v) for v in p.vehicles]} for p in policies]
+
+
+@app.post("/claims", status_code=201)
+def create_claim(data: ClaimIn, user: models.User = Depends(claimant_only), db: Session = Depends(get_db)):
+    claim = workflow.create_claim(db, user, data.model_dump())
     db.commit()
-    db.refresh(claim)
-    # the code is returned only here, once, for the Claim received page
-    return {"id": claim.id, **data.model_dump(), "tracking_code": code}
+    return claimant_claim(db, claim)
 
 
-@app.get("/claims")
-def list_claims(risk: Literal["low", "medium", "high"] | None = None,
-                db: Session = Depends(get_db),
-                reviewer: str = Depends(current_reviewer)):
-    """List claims. Optional filter: /claims?risk=high (low, medium or high)."""
-    out = []
-    for c in db.query(models.Claim).order_by(models.Claim.id.desc()).all():
-        v = latest_verdict(db, c.id)
-        item = {
-            "id": c.id,
-            "claimant_name": c.claimant_name,
-            "incident_date": c.incident_date,
-            "description": c.description,
-            "created_at": c.created_at.isoformat() if c.created_at else None,
-            "status": "analyzed" if v else "not_analyzed",
-            "overall_risk": v.overall_risk if v else None,
-            "risk_score": v.risk_score if v else None,
-            "reviewer_decision": v.reviewer_decision if v else None,
-        }
-        if risk is None or item["overall_risk"] == risk:
-            out.append(item)
-    return out
-
-
-@app.post("/claims/{claim_id}/images")
-async def upload_images(claim_id: int, files: list[UploadFile] = File(...),
-                        db: Session = Depends(get_db)):
-    if not db.get(models.Claim, claim_id):
-        raise HTTPException(404, "Claim not found")
-    saved = []
-    for f in files:
-        data = await f.read()
-        if not data.startswith(b"\xff\xd8"):          # every JPEG starts with these bytes
-            raise HTTPException(400, f"{f.filename} is not a JPEG")
-        h = hashlib.sha256(data).hexdigest()
-        dup = db.query(models.ImageRecord).filter_by(sha256_hash=h).first()
-        img = models.ImageRecord(claim_id=claim_id, file_path="", sha256_hash=h,
-                                 duplicate_of=dup.id if dup else None)
-        db.add(img)
-        db.flush()                                    # gives img an id
-        path = f"uploads/{img.id}.jpg"
-        with open(path, "wb") as out:
-            out.write(data)
-        img.file_path = path
-        saved.append({"image_id": img.id, "url": f"/{path}",
-                      "duplicate_of": img.duplicate_of})
-    db.commit()
-    return saved
-
-
-@app.post("/claims/{claim_id}/analyze")
-def analyze_claim(claim_id: int, db: Session = Depends(get_db)):
-    if not db.get(models.Claim, claim_id):
-        raise HTTPException(404, "Claim not found")
-    images = db.query(models.ImageRecord).filter_by(claim_id=claim_id).all()
-    if not images:
-        raise HTTPException(400, "Upload at least one photo before analyzing")
-
-    claim_score, reasons = 0.0, []
-    for img in images:
-        if img.duplicate_of:
-            reasons.append(f"Photo {img.id} is identical to an earlier upload (photo {img.duplicate_of})")
-        db.query(models.AnalysisResult).filter_by(image_id=img.id).delete()
-
-        results, problems = run_all_modules(img.file_path)
-        reasons.extend(problems)
-        for r in results:
-            r["score"] = float(r["score"])     # NumPy/PyTorch numbers -> plain Python
-            db.add(models.AnalysisResult(image_id=img.id, module=r["module"],
-                                         score=r["score"], flags=r["flags"],
-                                         artifact_paths=r["artifacts"]))
-            reasons.extend(r["flags"])
-
-        image_score = fuse({r["module"]: r["score"] for r in results})
-        if image_score is not None:
-            claim_score = max(claim_score, image_score)
-                # claim = riskiest photo
-    reasons = list(dict.fromkeys(reasons))      # remove repeated reasons, keep order
-    verdict = models.Verdict(claim_id=claim_id,
-                             overall_risk=risk_level(claim_score),
-                             risk_score=round(claim_score, 2),
-                             reasons=reasons[:5])
-    db.add(verdict)
-    db.commit()
-    return {"claim_id": claim_id, "overall_risk": verdict.overall_risk,
-            "risk_score": verdict.risk_score}
-
-
-@app.get("/claims/{claim_id}/results")
-def get_results(claim_id: int, db: Session = Depends(get_db),
-        reviewer: str = Depends(current_reviewer)):
+@app.post("/claims/{claim_id}/images", status_code=201)
+async def upload_images(claim_id: int, background: BackgroundTasks, files: list[UploadFile] = File(...),
+                        user: models.User = Depends(claimant_only), db: Session = Depends(get_db)):
     claim = db.get(models.Claim, claim_id)
-    if not claim:
-        raise HTTPException(404, "Claim not found")
-
-    verdict = latest_verdict(db, claim_id)
-
-    images = []
-    for img in db.query(models.ImageRecord).filter_by(claim_id=claim_id).all():
-        modules = []
-        for r in db.query(models.AnalysisResult).filter_by(image_id=img.id).all():
-            artifacts = {}
-            if r.artifact_paths and r.artifact_paths.get("heatmap_path"):
-                artifacts["heatmap_url"] = "/" + r.artifact_paths["heatmap_path"]
-            modules.append({"module": r.module, "score": r.score,
-                            "flags": r.flags or [], "artifacts": artifacts})
-        image_score = fuse({m["module"]: m["score"] for m in modules})
-        images.append({
-            "image_id": img.id,
-            "url": "/" + img.file_path,
-            "duplicate_of": img.duplicate_of,
-            "risk_score": image_score,
-            "risk_level": risk_level(image_score) if image_score is not None else None,
-            "modules": modules,
-        })
-    return {
-        "claim_id": claim.id,
-        "claimant_name": claim.claimant_name,
-        "incident_date": claim.incident_date,
-        "status": "analyzed" if verdict else "not_analyzed",
-        "overall_risk": verdict.overall_risk if verdict else None,
-        "risk_score": verdict.risk_score if verdict else None,
-        "reasons": verdict.reasons if verdict else [],
-        "reviewer_decision": verdict.reviewer_decision if verdict else None,
-        "reviewer_note": verdict.reviewer_note if verdict else None,
-        "reviewer_name": verdict.reviewer_name if verdict else None,
-        "decided_at": verdict.decided_at.replace(tzinfo=timezone.utc).isoformat()
-                      if verdict and verdict.decided_at else None,
-        "images": images,
-    }
-
-
-@app.patch("/claims/{claim_id}/decision")
-def record_decision(claim_id: int, data: DecisionIn, db: Session = Depends(get_db),
-                    reviewer: str = Depends(current_reviewer)):
-    if data.decision not in ("approved", "escalated"):
-        raise HTTPException(400, "decision must be 'approved' or 'escalated'")
-    verdict = latest_verdict(db, claim_id)
-    if not verdict:
-        raise HTTPException(400, "Analyze the claim before recording a decision")
-    verdict.reviewer_name = reviewer
-    verdict.reviewer_decision = data.decision
-    verdict.reviewer_note = data.note
-    verdict.decided_at = datetime.now(timezone.utc)
+    images = workflow.upload_photos(db, claim, user, await read_files(files))
     db.commit()
-    return {"claim_id": claim_id, "decision": data.decision, "note": data.note}
+    background.add_task(workflow.run_photo_checks_in_background, claim_id)   # checks start after the upload
+    return [{"image_id": i.id, "url": "/" + i.file_path} for i in images]
 
 
-@app.get("/review-queue")
-def review_queue(db: Session = Depends(get_db),
- reviewer: str = Depends(current_reviewer)):
-    """Medium and high claims with no reviewer decision yet, riskiest first."""
-    queue = []
-    for c in db.query(models.Claim).all():
-        v = latest_verdict(db, c.id)
-        if v and v.overall_risk in ("medium", "high") and not v.reviewer_decision:
-            queue.append({"claim_id": c.id, "claimant_name": c.claimant_name,
-                          "overall_risk": v.overall_risk, "risk_score": v.risk_score})
-    return sorted(queue, key=lambda q: q["risk_score"] or 0, reverse=True)
-
-CLAIMANT_STATUS = {
-    "received":   ("Received", "We're checking your photos."),
-    "processing": ("Being processed", "Your claim is moving ahead."),
-    "review":     ("Under review", "A reviewer is looking at your claim."),
-    "approved":   ("Approved", "Your claim has been approved for processing."),
-    "escalated":  ("Needs further review", "Your claim needs a closer look. We'll contact you."),
-}
+@app.get("/me/claims")
+def my_claims(user: models.User = Depends(claimant_only), db: Session = Depends(get_db)):
+    claims = (db.query(models.Claim).filter_by(claimant_id=user.id)
+                .order_by(models.Claim.created_at.desc(), models.Claim.id.desc()).all())
+    return [claimant_summary(c) for c in claims]
 
 
-@app.get("/claims/{claim_id}/status")
-def claim_status(claim_id: int, code: str, db: Session = Depends(get_db)):
-    """Public status for claimants: no scores, risk level, evidence or reviewer notes."""
+@app.get("/me/claims/{claim_id}")
+def my_claim(claim_id: int, user: models.User = Depends(claimant_only), db: Session = Depends(get_db)):
+    return claimant_claim(db, workflow.own_claim(db.get(models.Claim, claim_id), user))
+
+
+@app.post("/claims/{claim_id}/reply")
+async def reply(claim_id: int, background: BackgroundTasks, note: str = Form(""),
+                files: list[UploadFile] | None = File(None),
+                user: models.User = Depends(claimant_only), db: Session = Depends(get_db)):
     claim = db.get(models.Claim, claim_id)
-    # the same answer whether the claim doesn't exist or the code is wrong
-    if (not claim or not claim.tracking_code
-            or not hmac.compare_digest(clean_code(claim.tracking_code), clean_code(code))):
-        raise HTTPException(404, "No claim found with that number and code")
+    images = workflow.reply_to_info_request(db, claim, user, note, await read_files(files))
+    db.commit()
+    if images:
+        background.add_task(workflow.run_photo_checks_in_background, claim_id)
+    return claimant_claim(db, claim)
 
-    v = latest_verdict(db, claim_id)
-    if not v:
-        key = "received"                       # checks not finished
-    elif v.reviewer_decision in ("approved", "escalated"):
-        key = v.reviewer_decision              # a reviewer has decided
-    elif v.overall_risk == "low":
-        key = "processing"                     # low risk, no decision
-    else:
-        key = "review"                         # medium or high, no decision
-    status, message = CLAIMANT_STATUS[key]
 
-    steps = [
-        {"step": "Received", "done": True, "time": utc(claim.created_at)},
-        {"step": "Photos checked", "done": v is not None, "time": None},
-        {"step": "Under review", "done": key in ("review", "approved", "escalated"), "time": None},
-        {"step": "Decision", "done": key in ("approved", "escalated"),
-         "time": utc(v.decided_at) if v and v.reviewer_decision else None},
-    ]
-    return {"claim_id": claim.id, "claimant_name": claim.claimant_name,
-            "incident_date": claim.incident_date,
-            "status": status, "message": message, "steps": steps}
+# ---------------------------------------------------------------- endpoints: assessor
+
+@app.get("/assessor/claims")
+def assessor_claims(user: models.User = Depends(assessor_only), db: Session = Depends(get_db)):
+    claims = (db.query(models.Claim).filter_by(assessor_id=user.id)
+                .order_by(models.Claim.created_at.desc(), models.Claim.id.desc()).all())
+    return [staff_summary(db, c) for c in claims]
+
+
+@app.get("/assessor/claims/{claim_id}")
+def assessor_claim(claim_id: int, user: models.User = Depends(assessor_only), db: Session = Depends(get_db)):
+    return staff_claim(db, workflow.assigned_claim(db.get(models.Claim, claim_id), user))
+
+
+@app.post("/claims/{claim_id}/quotation")
+def submit_quotation(claim_id: int, data: QuotationIn, user: models.User = Depends(assessor_only),
+                     db: Session = Depends(get_db)):
+    claim = db.get(models.Claim, claim_id)
+    workflow.submit_quotation(db, claim, user, [i.model_dump() for i in data.items], data.note)
+    db.commit()
+    return staff_claim(db, claim)
+
+
+@app.get("/price-list")
+def price_list(user: models.User = Depends(require_role("assessor", "insurer"))):
+    if not PRICE_LIST_PATH.exists():
+        raise HTTPException(404, "Not found: data/price_list.json is missing")
+    return json.loads(PRICE_LIST_PATH.read_text(encoding="utf-8"))
+
+
+# ---------------------------------------------------------------- endpoints: insurer
+
+RISK_ORDER = {"high": 0, "medium": 1, "low": 2, None: 3}
+
+
+@app.get("/insurer/claims")
+def insurer_claims(status: str | None = None, risk: Literal["low", "medium", "high"] | None = None,
+                   user: models.User = Depends(insurer_only), db: Session = Depends(get_db)):
+    if status and status not in workflow.STATUSES:
+        raise HTTPException(400, f"Unknown status '{status}'")
+    query = db.query(models.Claim)
+    if status:
+        query = query.filter_by(status=status)
+    if risk:
+        query = query.filter_by(risk_level=risk)
+    claims = query.all()
+    # fraud flags first, then high risk, then newest
+    claims.sort(key=lambda c: (c.created_at or datetime.min.replace(tzinfo=timezone.utc)), reverse=True)
+    claims.sort(key=lambda c: (not c.fraud_flag, RISK_ORDER.get(c.risk_level, 3)))
+    return [staff_summary(db, c) for c in claims]
+
+
+@app.get("/insurer/claims/{claim_id}")
+def insurer_claim_view(claim_id: int, user: models.User = Depends(insurer_only), db: Session = Depends(get_db)):
+    return insurer_claim(db, workflow.get_claim(db, claim_id))
+
+
+@app.post("/claims/{claim_id}/start-review")
+def start_review(claim_id: int, user: models.User = Depends(insurer_only), db: Session = Depends(get_db)):
+    claim = workflow.get_claim(db, claim_id)
+    workflow.start_review(db, claim, user)
+    db.commit()
+    return insurer_claim(db, claim)
+
+
+@app.post("/claims/{claim_id}/request-info")
+def request_info(claim_id: int, data: InfoRequestIn, user: models.User = Depends(insurer_only),
+                 db: Session = Depends(get_db)):
+    claim = workflow.get_claim(db, claim_id)
+    workflow.request_info(db, claim, user, data.message)
+    db.commit()
+    return insurer_claim(db, claim)
+
+
+@app.post("/claims/{claim_id}/decision")
+def decision(claim_id: int, data: DecisionIn, user: models.User = Depends(insurer_only),
+             db: Session = Depends(get_db)):
+    claim = workflow.get_claim(db, claim_id)
+    workflow.decide(db, claim, user, data.outcome, data.amount, data.note)
+    db.commit()
+    return insurer_claim(db, claim)
+
+
+@app.post("/claims/{claim_id}/settle")
+def settle(claim_id: int, user: models.User = Depends(insurer_only), db: Session = Depends(get_db)):
+    claim = workflow.get_claim(db, claim_id)
+    workflow.settle(db, claim, user)
+    db.commit()
+    return insurer_claim(db, claim)

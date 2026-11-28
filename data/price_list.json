@@ -1,0 +1,20 @@
+[
+  {"kind": "part", "description": "Rear bumper (hatchback)", "unit_price": 8500},
+  {"kind": "part", "description": "Front bumper (hatchback)", "unit_price": 7800},
+  {"kind": "part", "description": "Front bumper (sedan)", "unit_price": 11500},
+  {"kind": "part", "description": "Headlamp assembly", "unit_price": 6200},
+  {"kind": "part", "description": "Tail lamp assembly", "unit_price": 3400},
+  {"kind": "part", "description": "Bonnet (hatchback)", "unit_price": 9800},
+  {"kind": "part", "description": "Front fender", "unit_price": 4200},
+  {"kind": "part", "description": "Front door shell", "unit_price": 14500},
+  {"kind": "part", "description": "Outer rear view mirror", "unit_price": 2900},
+  {"kind": "part", "description": "Windshield glass", "unit_price": 7500},
+  {"kind": "part", "description": "Radiator grille", "unit_price": 2600},
+  {"kind": "part", "description": "Fog lamp", "unit_price": 1800},
+  {"kind": "labour", "description": "Paint, per panel", "unit_price": 3500},
+  {"kind": "labour", "description": "Fitting, per hour", "unit_price": 800},
+  {"kind": "labour", "description": "Denting, per panel", "unit_price": 1500},
+  {"kind": "labour", "description": "Bumper removal and refitting", "unit_price": 1200},
+  {"kind": "labour", "description": "Windshield fitting", "unit_price": 1000},
+  {"kind": "labour", "description": "Wheel alignment", "unit_price": 600}
+]

@@ -1,21 +1,27 @@
-// Where the reviewer's sign-in is kept: sessionStorage survives a page reload but not closing the browser.
-export const STORAGE_KEY = 'claimProof.reviewer';
-export const SIGNED_OUT_EVENT = 'claimproof:signed-out';
+// The sign-in token is kept in sessionStorage so a page refresh can restore the session
+// with GET /me. It is cleared on sign-out, on a 401, or when the browser tab is closed.
+const TOKEN_KEY = 'claimproof.token';
 
-export function readSession() {
+export function readToken() {
   try {
-    const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY));
-    if (saved?.token && saved.expiresAt > Date.now()) return saved;
+    return sessionStorage.getItem(TOKEN_KEY);
   } catch {
-    // unreadable storage counts as signed out
+    return null;
   }
-  return null;
 }
 
-export function saveSession(session) {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+export function saveToken(token) {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // storage blocked: the session lasts until the page is refreshed
+  }
 }
 
-export function clearSession() {
-  sessionStorage.removeItem(STORAGE_KEY);
+export function clearToken() {
+  try {
+    sessionStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // nothing to clear
+  }
 }
